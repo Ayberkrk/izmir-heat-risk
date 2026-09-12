@@ -1,0 +1,19 @@
+{
+  "city_id": "izmir",
+  "name": "İzmir",
+  "years": [
+    "2020",
+    "2026"
+  ],
+  "default_year": "2026",
+  "road_count": 43141,
+  "avg_hvi_percentage": 45.9,
+  "category_counts": {
+    "Orta": 12535,
+    "Yüksek": 11199,
+    "Kritik": 8626,
+    "Düşük": 6570,
+    "Aşırı Kritik": 4211
+  },
+  "top_risk_mahalle": "Çolak İbrahim Bey Mahallesi"
+}

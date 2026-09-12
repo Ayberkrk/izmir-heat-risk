@@ -9,6 +9,9 @@ data/processed/
 # Üretilen çıktılar - hepsi pipeline.py ile yeniden üretilebilir.
 # Harita HTML'i 60 MB'ı aştığı için (GitHub 50 MB'da uyarır, 100 MB'da
 # reddeder) depoda tutulmuyor; üretme komutu README'nin başında.
+# Not: `docs/` bilinçli olarak buraya dahil DEĞİL - GitHub Pages'in
+# servis ettiği, veri fetch tabanlı bölündüğü için küçük kalan sürüm
+# orada yaşar ve depoda tutulur.
 output/
 
 # Python
@@ -16,6 +19,7 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 *.egg-info/
+.pytest_cache/
 
 # Editör / OS
 .DS_Store

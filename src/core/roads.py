@@ -12,10 +12,15 @@ import rasterio
 import rasterstats
 import requests
 
+from core.cache import is_cache_valid, write_cache_meta
 from core.city_config import CityConfig
 from core.paths import city_data_proc, city_data_raw, year_paths
 
 OSM_DOWNLOAD_TIMEOUT_SECONDS = 300
+
+# `compute_road_risk_timeseries` çıktısının formül sürümü - LST/NDVI risk
+# skorunun hesaplanma biçimi değiştiğinde artırılmalı (bkz. core/cache.py).
+RISK_TIMESERIES_VERSION = 1
 
 
 def fetch_road_network(config: CityConfig) -> gpd.GeoDataFrame:
@@ -55,7 +60,8 @@ def fetch_road_network(config: CityConfig) -> gpd.GeoDataFrame:
     return roads
 
 
-def compute_road_risk_timeseries(config: CityConfig, years: list[str], main_year: str) -> gpd.GeoDataFrame:
+def compute_road_risk_timeseries(config: CityConfig, years: list[str], main_year: str,
+                                  force: bool = False) -> gpd.GeoDataFrame:
     """Her yıl için yol başına ortalama LST ve NDVI'yi hesaplar.
 
     LST, ortak bir min-max aralığıyla 0-100 risk skoruna çevrilir. Yıllar
@@ -70,8 +76,8 @@ def compute_road_risk_timeseries(config: CityConfig, years: list[str], main_year
     zaten hesaplanan mozaikten okunuyor.
     """
     output_path = city_data_proc(config.city_id) / "roads_timeseries.geojson"
-    if output_path.exists():
-        print("roads_timeseries.geojson zaten mevcut, atlanıyor")
+    if is_cache_valid(output_path, RISK_TIMESERIES_VERSION, force=force):
+        print("roads_timeseries.geojson güncel, atlanıyor")
         return gpd.read_file(output_path)
 
     roads = fetch_road_network(config)
@@ -128,6 +134,7 @@ def compute_road_risk_timeseries(config: CityConfig, years: list[str], main_year
     roads_final["degisim_kategori"] = roads_final["degisim_kategori"].astype(str)
     roads_final = roads_final.set_geometry("geometry").to_crs("EPSG:4326")
     roads_final.to_file(output_path, driver="GeoJSON")
+    write_cache_meta(output_path, RISK_TIMESERIES_VERSION)
 
     print(f"Kaydedildi: {output_path.name} ({len(roads_final):,} yol segmenti)")
     return roads_final

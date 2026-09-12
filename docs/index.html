@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Kentsel Isı Hassasiyeti - Şehirler</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #1a1a1a; color: #eee; margin: 0; padding: 40px 20px; }
+  h1 { text-align: center; font-weight: 600; }
+  p.aciklama { text-align: center; color: #aaa; max-width: 640px; margin: 0 auto 40px; }
+  .kartlar { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; max-width: 900px; margin: 0 auto; }
+  .kart { display: block; width: 260px; background: #262626; border-radius: 10px; padding: 20px;
+           text-decoration: none; color: inherit; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+           transition: transform 0.15s; }
+  .kart:hover { transform: translateY(-4px); }
+  .kart h2 { margin: 0 0 12px; font-size: 18px; }
+  .istatistik { display: flex; align-items: baseline; gap: 6px; margin-bottom: 10px; }
+  .istatistik b { font-size: 28px; color: #fd8d3c; }
+  .istatistik span { font-size: 12px; color: #aaa; }
+  .kart p { font-size: 13px; color: #ccc; margin: 4px 0; }
+</style>
+</head>
+<body>
+<h1>Kentsel Isı Hassasiyeti Endeksi (HVI)</h1>
+<p class="aciklama">Sıcaklık, ağaç örtüsü, nüfus yoğunluğu, yaşlı/çocuk
+oranı, sağlık/yeşil alan erişimi ve yapılaşma yoğunluğunu birleştiren
+çok bileşenli bir risk skoru. Bir şehre tıklayarak yol bazlı interaktif
+haritayı açabilirsiniz.</p>
+<div class="kartlar">
+
+    <a class="kart" href="./izmir/index.html">
+        <h2>İzmir</h2>
+        <div class="istatistik"><b>45.9</b><span>ortalama HVI yüzdesi</span></div>
+        <p>43,141 yol segmenti · 2020, 2026</p>
+        <p>En riskli mahalle: <b>Çolak İbrahim Bey Mahallesi</b></p>
+    </a>
+    
+
+    <a class="kart" href="./eskisehir/index.html">
+        <h2>Eskişehir</h2>
+        <div class="istatistik"><b>39.4</b><span>ortalama HVI yüzdesi</span></div>
+        <p>7,287 yol segmenti · 2020, 2026</p>
+        <p>En riskli mahalle: <b>Gökçekısık Mahallesi</b></p>
+    </a>
+    
+</div>
+</body>
+</html>

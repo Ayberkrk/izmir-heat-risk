@@ -18,6 +18,11 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 OUTPUT_DIR = PROJECT_ROOT / "output"
 
+# GitHub Pages'in servis ettiği klasör (Settings → Pages → Branch: main,
+# klasör: /docs). `output/`'un aksine git'e dahildir - her şehrin küçük,
+# fetch tabanlı harita sürümü ve karşılaştırma sayfası burada yaşar.
+DOCS_DIR = PROJECT_ROOT / "docs"
+
 _DATA_RAW_ROOT = PROJECT_ROOT / "data" / "raw"
 _DATA_PROC_ROOT = PROJECT_ROOT / "data" / "processed"
 

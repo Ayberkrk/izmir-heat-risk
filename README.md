@@ -1,12 +1,16 @@
-# İzmir Kentsel Isı Adası ve Isı Hassasiyet Endeksi (HVI)
+# Kentsel Isı Adası ve Isı Hassasiyet Endeksi (HVI)
 
 Açık verilerle çalışan, tekrar üretilebilir bir kentsel ısı riski analiz hattı.
 Landsat yüzey sıcaklığı, OpenStreetMap yol ağı ve demografik verileri
-birleştirerek ısı riskini sokak ölçeğinde haritalar. İzmir ilk uygulamadır;
-mimarinin diğer Türkiye şehirlerine genişletilmesi hedeflenmektedir.
+birleştirerek ısı riskini sokak ölçeğinde haritalar. Şehirden bağımsız bir
+mimariye sahiptir; İzmir ve Eskişehir şu an desteklenen iki örnek, yeni bir
+şehir eklemek `src/core/` içindeki hiçbir dosyayı değiştirmeden mümkündür
+(bkz. [CONTRIBUTING.md](CONTRIBUTING.md)).
 
-**İnteraktif harita:** dosya 65 MB olduğu için (GitHub 50 MB üzerini
-uyarır, 100 MB üzerini reddeder) depoda tutulmuyor. Aşağıdaki komutla
+**Canlı harita:** GitHub Pages'te barındırılan, veri talep üzerine yüklenen
+küçük sürüm için `docs/index.html` (Pages etkinleştirildiğinde bir URL'e
+dönüşür). Tamamen çevrimdışı, tek dosyalık sürüm (~60 MB, GitHub'ın 50 MB
+uyarı/100 MB ret sınırını aştığı için depoda tutulmuyor) aşağıdaki komutla
 birkaç dakikada yerelde üretilir:
 
 ```bash
@@ -62,16 +66,22 @@ veya [Geofabrik](https://download.geofabrik.de/)), `admin_level_ilce` /
 `osm_gdf['admin_level'].unique()` ile önceden doğrula) buraya yazılır.
 
 **2. Bir demografi "adapter"ı yaz (en fazla emek isteyen adım)**
-`src/cities/izmir/adapter.py`, İzmir Büyükşehir Belediyesi'nin CKAN
-tabanlı açık veri portalına (`acikveri.bizizmir.com`) özel yazıldı ve
-`fetch_population_data()` / `build_neighborhood_layer()` arayüzünü
-uygular. Yeni bir şehir için aynı arayüzü uygulayan kendi adapter'ını
-`src/cities/<sehir>/adapter.py` altında yaz:
+İki referans örnek farklı veri kaynağı senaryolarını gösterir:
+  - `src/cities/izmir/adapter.py`: belediyenin kendi CKAN tabanlı açık veri
+    portalı varsa (`acikveri.bizizmir.com`), mahalle seviyesinde nüfus/yaş.
+  - `src/cities/eskisehir/adapter.py`: böyle bir portal YOKSA, TÜİK'in
+    herkese açık ilçe seviyesindeki ADNKS yayınlarını statik CSV olarak
+    kullanan şablon - kendi CKAN'ı olmayan başka bir Türkiye şehri için
+    neredeyse değişiklik yapmadan uyarlanabilir.
+
+Her iki örnek de `fetch_population_data()` / `build_neighborhood_layer()`
+arayüzünü uygular. Yeni bir şehir için aynı arayüzü uygulayan kendi
+adapter'ını `src/cities/<sehir>/adapter.py` altında yaz:
   - Mahalle/idari sınır poligonlarını OSM'den çekmeye devam edebilirsin.
   - Nüfus yoğunluğu, yaşlı ve çocuk nüfus oranı verisini yerel istatistik
     kurumundan (TÜİK, Eurostat, US Census vb.) veya belediyenin kendi açık
     veri portalından CSV/JSON olarak al.
-  - Mahalle-ilçe eşlemesi İzmir adapter'ında **isme göre değil konumsal
+  - Mahalle-ilçe eşlemesi her iki adapter'da da **isme göre değil konumsal
     sorguyla** (`sjoin`, centroid içinde mi) yapılıyor - aynı isimli
     mahallelerin yanlış ilçeyle eşleşmesini önlüyor. Bu yaklaşımı koru,
     hangi ülkede olursan ol işe yarar.
@@ -105,6 +115,16 @@ LST(°C) = LST(K) - 273.15
 Bulutlar kızılötesiyi bozduğu için her sahne aranırken bulut oranı %30'un
 altında tutulur ve her uydu karosu (path/row) için mevcut en temiz tarih
 seçilir.
+
+**UTM dilim sınırındaki şehirler:** USGS her Landsat sahnesini kendi
+merkezine en yakın UTM dilimine işler. Bir şehrin bbox'ı iki komşu path/row
+karosunun kesiştiği ve bu karoların farklı UTM dilimlerine düştüğü bir
+noktaya denk gelirse (Eskişehir'de yaşandı: 4 karodan 3'ü UTM 36N/EPSG:32636,
+biri UTM 35N/EPSG:32635), mozaikleme öncesi tüm sahneler `config.crs`'e
+yeniden izdüşürülür (`core/raster.py`, `reproject_to_crs`) - aksi halde
+`stream_mosaic` farklı dilimdeki sahneyi (aynı sayısal koordinatlar farklı
+coğrafi konuma karşılık geldiği için) yanlış yere yapıştırır ve o bölgede
+neredeyse hiç geçerli piksel kalmaz.
 
 ### Yol ↔ sıcaklık eşlemesi (spatial join)
 
@@ -221,6 +241,19 @@ ile "2026'da 45°C" farklı skorlara denk gelir - karşılaştırma anlamsızla�
 Bunun yerine iki yılın LST değerleri birleştirilip **tek bir ortak
 min-max aralığı** bulunur, her iki yıl da bu aynı cetvelle ölçülür.
 
+### Gece ısı adası (isteğe bağlı, `--night-lst`)
+
+Landsat'ın termal bandı gündüz geçişi için tasarlanmıştır; gece ısı adası
+etkisi (şehir merkezlerinin kırsala göre geceleri daha yavaş soğuması,
+genelde gündüzden daha güçlü hissedilen bir etki) bu veri setinde yoktu.
+`--night-lst` bayrağı, aynı Planetary Computer altyapısından MODIS'in
+"LST_Night_1km" ürününü çeker (yazın tüm 8 günlük kompozitlerinin
+piksel bazlı ortalaması, tek bir bulutlu gecenin sonucu domine etmesini
+önlemek için). MODIS 1 km çözünürlükte olduğu için (Landsat'ın 30 m'sinin
+aksine) bu katman yol segmenti değil **mahalle** ölçeğinde sunulur ve
+HVI skoruna dahil edilmez - haritada ayrı, varsayılan olarak kapalı bir
+katmandır.
+
 ## 2020 → 2026: Bulgular
 
 *(6 yıllık pencere; her iki yıl da temmuz-ağustos Landsat sahnelerinden.
@@ -311,11 +344,60 @@ python pipeline.py --city izmir --years 2020 2026 --main-year 2026 --open
 - `--main-year`: hangi yılın "ana/düz" klasör yapısını kullanacağı
   (`data/raw/<sehir>/...` vs. `data/raw/<sehir>/<yıl>/...`)
 - `--open`: harita üretildikten sonra otomatik tarayıcıda aç
+- `--force`: yol risk skoru ve HVI önbelleğini yok say, yeniden hesapla
+- `--night-lst`: mahalle ölçeğinde MODIS gece ısı adası katmanını da üret
+  (isteğe bağlı, ek bir uydu kaynağı indirir - bkz. Metodoloji)
 
 Her adım, çıktısı zaten diskte varsa atlanır - script yarıda kesilse bile
 `python pipeline.py --city izmir` ile kaldığı yerden devam eder. İlk
 çalıştırma (4 Landsat sahnesi × 2 yıl + OSM özütü) makul bir internet
 bağlantısında ~15-25 dakika ve ~5-6 GB disk alanı gerektirir.
+
+Yol risk skoru ve HVI çıktıları formül sürümü değiştiğinde otomatik
+olarak yeniden hesaplanır (bkz. `src/core/cache.py`); veri kaynağı aynı
+kalıp sadece parametre denemek isteniyorsa `--force` ile elle de
+zorlanabilir.
+
+## Testler
+
+Saf/mantık ağırlıklı fonksiyonlar (normalizasyon, yüzdelik dilim
+etiketleme, config doğrulama, önbellek geçerliliği) için birim testler
+`tests/` altında yer alır - uydu indirme veya OSM ağı gerektirmez, saniyeler
+içinde çalışır:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest
+```
+
+## Docker ile çalıştırma
+
+`rasterio`/GDAL kurulumu makineden makineye (özellikle Windows'ta) sorun
+çıkarabiliyor - `Dockerfile`, "bu imaj çalışıyorsa senin makinende de
+çalışır" garantisi verir. Çıktılar (`data/`, `output/`, `docs/`) konteyner
+dışında kalıcı olsun diye host'a mount edilir:
+
+```bash
+docker build -t izmir-heat-risk .
+docker run --rm \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/output:/app/output" \
+  -v "$(pwd)/docs:/app/docs" \
+  izmir-heat-risk --city izmir --years 2020 2026 --main-year 2026
+```
+
+## Barındırma (GitHub Pages)
+
+`pipeline.py`, her şehir için iki harita üretir (bkz. `core/map_builder.py`):
+`output/<sehir>_hvi_map.html` (tek dosya, çevrimdışı) ve `docs/<sehir>/`
+(veri ayrı küçük GeoJSON dosyalarına bölünmüş, tarayıcı sadece açılan
+katmanı indirir - ilk sayfa yükü birkaç yüz KB). İkincisini yayınlamak için:
+
+1. En az bir şehir için `python pipeline.py --city <sehir>` çalıştır.
+2. `python build_docs_index.py` ile şehirler arası karşılaştırma sayfasını
+   (`docs/index.html`) üret.
+3. `docs/` klasörünü commit'le, GitHub'da Settings → Pages → Branch: `main`,
+   klasör: `/docs` seç.
 
 ## Proje yapısı
 
@@ -323,6 +405,7 @@ bağlantısında ~15-25 dakika ve ~5-6 GB disk alanı gerektirir.
 izmir-heat-risk/
 ├── pipeline.py               # Tek üst seviye giriş noktası: python pipeline.py --city izmir
 ├── validate_city.py           # Yeni bir şehir config.yaml'ını hızlıca doğrular
+├── build_docs_index.py        # docs/ altındaki şehirler için karşılaştırma sayfası üretir
 ├── src/
 │   ├── core/                  # Şehirden bağımsız, genel pipeline mantığı
 │   │   ├── city_config.py     #   config.yaml yükleyici + doğrulama
@@ -331,19 +414,34 @@ izmir-heat-risk/
 │   │   ├── roads.py           #   OSM yol ağı + yıllık sıcaklık/NDVI eşleme
 │   │   ├── osm_amenities.py   #   sağlık/yeşil alan/bina katmanları (OSM'den)
 │   │   ├── hvi.py             #   çok bileşenli HVI hesaplama
-│   │   └── map_builder.py     #   interaktif Folium haritası
+│   │   ├── map_builder.py     #   interaktif Folium haritası (çevrimdışı + barındırma sürümü)
+│   │   ├── night_lst.py       #   isteğe bağlı: mahalle ölçeğinde MODIS gece ısı adası katmanı
+│   │   ├── cache.py           #   ara çıktılar için sürüm damgalı önbellek geçerliliği
+│   │   └── text_utils.py      #   şehirler arası paylaşılan Türkçe metin normalizasyonu
 │   └── cities/
-│       └── izmir/
-│           ├── config.yaml         #   İzmir'e özel bbox, URL'ler, sütun eşlemeleri
-│           ├── adapter.py          #   İzmir'e özel nüfus/demografi mantığı (CKAN)
+│       ├── izmir/
+│       │   ├── config.yaml         #   İzmir'e özel bbox, URL'ler, sütun eşlemeleri
+│       │   ├── adapter.py          #   İzmir'e özel nüfus/demografi mantığı (CKAN)
+│       │   └── sege_2022_ilce.csv  #   İlçe bazlı sosyoekonomik gelişmişlik skoru (resmi SEGE-2022)
+│       └── eskisehir/
+│           ├── config.yaml         #   Eskişehir'e özel bbox, URL'ler
+│           ├── adapter.py          #   TÜİK tabanlı nüfus/demografi mantığı (CKAN'sız şablon)
+│           ├── ilce_nufus.csv      #   İlçe nüfusu + yaşlı/çocuk oranı (TÜİK ADNKS 2025)
 │           └── sege_2022_ilce.csv  #   İlçe bazlı sosyoekonomik gelişmişlik skoru (resmi SEGE-2022)
+├── tests/                     # Saf/mantık fonksiyonları için birim testler (ağ gerektirmez)
+├── docs/                      # GitHub Pages'in servis ettiği, küçük/fetch tabanlı harita sürümü
+│   ├── index.html             #   şehirler arası karşılaştırma sayfası (build_docs_index.py üretir)
+│   └── <sehir>/                #   her şehrin index.html'i + ayrı küçük GeoJSON veri dosyaları
 ├── output/                    # pipeline.py tarafından üretilir, git'e dahil değil
-│   └── <sehir>_hvi_map.html  #   final interaktif harita (tek başına açılabilir)
+│   └── <sehir>_hvi_map.html  #   tamamen çevrimdışı, tek dosyalık harita (çift tıklayıp açılabilir)
 ├── data/                      # pipeline.py tarafından üretilir, git'e dahil değil
 │   ├── raw/<sehir>/           #   indirilen Landsat bantları, OSM özütü, nüfus CSV'leri (şehir bazlı ayrılır)
 │   └── processed/<sehir>/     #   LST/NDVI mozaikleri, ara GeoJSON'lar (şehir bazlı ayrılır)
 ├── CONTRIBUTING.md            # Yeni şehir ekleme adımları
 ├── requirements.txt
+├── requirements-dev.txt       # Test bağımlılıkları (pytest)
+├── Dockerfile / .dockerignore # Tek komutla tekrar üretilebilir çalışma ortamı
+├── LICENSE                    # MIT
 └── README.md
 ```
 
@@ -354,9 +452,12 @@ izmir-heat-risk/
   ama sonuç kalitesi düşer.
 - **Yaş verisinin çözünürlüğü**: yaşlı nüfus oranı ilçe seviyesinde -
   mahalle-içi gerçek dağılım bundan daha değişken olabilir.
-- **Tek gündüz anlık görüntüsü**: LST, sahnenin çekildiği saatteki (Landsat
-  için genelde öğleden sonraya yakın) sıcaklığı yansıtır; gece ısı adası
-  etkisi (genelde daha güçlü olduğu bilinir) bu veri setinde yok.
+- **Tek gündüz anlık görüntüsü**: yol bazlı LST, sahnenin çekildiği saatteki
+  (Landsat için genelde öğleden sonraya yakın) sıcaklığı yansıtır. Gece ısı
+  adası etkisi (genelde daha güçlü olduğu bilinir) `--night-lst` bayrağıyla
+  ayrı bir katman olarak eklenebilir (MODIS, 1 km çözünürlük) ama bu katman
+  yol değil mahalle ölçeğindedir ve HVI skoruna dahil değildir - bkz.
+  `core/night_lst.py` ve aşağıdaki Metodoloji bölümü.
 - **10 metrelik yol tamponu**: sıcaklık ve NDVI örneklemesinde kullanılan
   bu dar tampon, çok dar sokaklarda komşu bir yolun etkisini
   karıştırabilir; çok geniş bulvarlarda ise koridorun tamamını
@@ -366,13 +467,22 @@ izmir-heat-risk/
   yolların tamponları örtüştüğü için yakın yollar benzer yoğunluk değeri
   alır, yani bu bileşen yol ölçeğinden çok mahalle ölçeğinde ayrıştırır.
 - **SEGE tablosu elle aktarılmıştır**: `sege_2022_ilce.csv` içindeki
-  skorlar resmi rapordan elle çıkarılmıştır; kritik bir kullanımdan önce
-  resmi yayınla karşılaştırılması önerilir.
+  skorlar resmi rapordan elle çıkarılmıştır; 30 ilçenin tamamı T.C. Sanayi
+  ve Teknoloji Bakanlığı'nın resmi SEGE-2022 raporuyla satır satır
+  karşılaştırılmış ve doğrulanmıştır. Yine de rapor güncellendiğinde bu
+  dosyanın elle yeniden kontrol edilmesi gerekir.
 - **Sosyoekonomik bileşen ilçe seviyesinde**: SEGE-2022 skoru da (yaşlı/
   çocuk oranı gibi) ilçe seviyesinde - mahalle-içi gerçek dağılım bundan
   daha değişken olabilir. Ayrıca 2022 tarihli, tek seferlik bir araştırma;
   gelecekte güncellenmiş bir SEGE raporu yayımlanırsa
   `sege_2022_ilce.csv` güncellenmelidir.
+- **Eskişehir'de bir kademe daha kaba çözünürlük**: İzmir'in mahalle
+  seviyesinde CKAN nüfus verisinin aksine, Eskişehir'in adapter'ı yaşlı/
+  çocuk oranı için ilçe bazlı bir TÜİK yayını bulamadığından İL'in genel
+  yaş dağılımını her iki ilçeye de aynı şekilde uyguluyor; nüfus yoğunluğu
+  da mahalle değil ilçe bazında sabit. Gerçek ilçe-içi/mahalle-içi
+  eşitsizlik bu yüzden İzmir'e göre daha az görünür (bkz.
+  `cities/eskisehir/adapter.py` docstring'i).
 
 ## Lisans
 

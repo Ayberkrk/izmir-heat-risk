@@ -26,7 +26,9 @@ touch src/cities/<sehir>/__init__.py
 city:
   name: "Şehrin Görünen Adı"
   bbox: [batı, güney, doğu, kuzey]   # derece cinsinden
-  crs: "EPSG:xxxxx"                   # şehrin bulunduğu UTM dilimi (metre cinsinden CRS)
+  crs: "EPSG:xxxxx"                   # şehrin bulunduğu UTM dilimi (metre cinsinden CRS) -
+                                       # başka bir şehrinkini kopyalama, boylama göre hesapla:
+                                       # UTM dilimi = floor((boylam + 180) / 6) + 1, EPSG = 32600 + dilim (kuzey yarımküre)
 
 landsat:
   max_cloud_cover: 30                 # % - gerekirse gevşet
@@ -86,12 +88,26 @@ def build_neighborhood_layer(pbf_path: Path, population_paths: dict[str, Path],
     """
 ```
 
-`src/cities/izmir/adapter.py` referans bir örnektir - CKAN'dan CSV çekme,
-Türkçe karakter normalizasyonu, konumsal (isme göre değil) mahalle-ilçe
-eşlemesi ve resmi bir raporu (SEGE-2022) küçük bir referans CSV olarak
-repoya gömme gibi desenleri gösterir. Farklı bir veri kaynağı biçimin
-varsa (ör. GeoJSON, doğrudan bir API) sadece bu iki fonksiyonun imzasına
-uymak yeterlidir - CKAN'a özel hiçbir şey zorunlu değildir.
+İki referans örnek mevcut, farklı veri kaynağı biçimleri için:
+
+- `src/cities/izmir/adapter.py`: belediyenin kendi CKAN açık veri
+  portalından (mahalle seviyesinde nüfus/yaş) CSV çekme, Türkçe karakter
+  normalizasyonu, konumsal (isme göre değil) mahalle-ilçe eşlemesi ve
+  resmi bir raporu (SEGE-2022) küçük bir referans CSV olarak repoya gömme.
+- `src/cities/eskisehir/adapter.py`: belediyeye özel bir portal
+  OLMADIĞINDA kullanılabilecek şablon - TÜİK'in herkese açık, ilçe
+  seviyesindeki ADNKS nüfus/yaş yayınlarını statik CSV olarak kullanır.
+  Bu şablon, kendi CKAN portalı olmayan HERHANGİ bir Türkiye şehri için
+  neredeyse değişiklik yapmadan uyarlanabilir - sadece `ilce_nufus.csv`
+  ve `sege_2022_ilce.csv` içindeki satırları o şehrin ilçeleriyle
+  değiştirmek yeterlidir. Not: bu yaklaşım nüfus yoğunluğunu ve yaşlı/
+  çocuk oranını ilçe seviyesinde sabitler (mahalle içi farklılığı
+  yakalayamaz) - CKAN gibi daha ince taneli bir kaynak varsa İzmir'in
+  yöntemi tercih edilmeli.
+
+Farklı bir veri kaynağı biçimin varsa (ör. GeoJSON, doğrudan bir API)
+sadece bu iki fonksiyonun imzasına uymak yeterlidir - CKAN'a veya
+TÜİK'e özel hiçbir şey zorunlu değildir.
 
 Ham/işlenmiş veri (`data/raw/<sehir>/`, `data/processed/<sehir>/`) şehir
 kimliğine göre otomatik ayrılır - bu konuda adapter'ında hiçbir şey

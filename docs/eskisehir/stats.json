@@ -1,0 +1,19 @@
+{
+  "city_id": "eskisehir",
+  "name": "Eskişehir",
+  "years": [
+    "2020",
+    "2026"
+  ],
+  "default_year": "2026",
+  "road_count": 7287,
+  "avg_hvi_percentage": 39.4,
+  "category_counts": {
+    "Yüksek": 2125,
+    "Düşük": 1940,
+    "Orta": 1836,
+    "Kritik": 1282,
+    "Aşırı Kritik": 104
+  },
+  "top_risk_mahalle": "Gökçekısık Mahallesi"
+}

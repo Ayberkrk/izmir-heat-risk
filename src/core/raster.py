@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import rasterio
 from rasterio.transform import Affine
+from rasterio.warp import Resampling, calculate_default_transform, reproject
 from rasterio.windows import from_bounds as window_from_bounds
 
 from core.city_config import CityConfig
@@ -65,6 +66,40 @@ def save_geotiff(array: np.ndarray, output_path: Path, profile: dict, nodata_val
     with rasterio.open(output_path, "w", **out_profile) as dst:
         dst.write(arr_to_save, 1)
     del arr_to_save
+
+
+def reproject_to_crs(src_path: Path, dst_path: Path, dst_crs: str, nodata_val: float = -9999.0) -> None:
+    """Bir GeoTIFF'i başka bir CRS'e yeniden izdüşürür (yerinde değil, ayrı dosyaya).
+
+    Bbox'ı geniş bir alana yayılan şehirler, iki farklı Landsat sahnesinin
+    komşu UTM dilimlerine (ör. bölge sınırındaki bir şehir için 32635 ve
+    32636) düşmesine yol açabilir - USGS her sahneyi kendi merkezine en
+    yakın dilime işler. `stream_mosaic`, tüm sahnelerin AYNI piksel
+    ızgarasında olduğunu varsayar; farklı CRS'teki bir sahne sessizce
+    yanlış konuma yapıştırılır (koordinatlar aynı sayılar, farklı anlam).
+    Bu fonksiyon her sahneyi mozaiklemeden önce ortak `dst_crs`'e getirir.
+    """
+    with rasterio.open(src_path) as src:
+        # Hedef piksel boyutu kaynağınkiyle (ör. Landsat için 30 m) AYNI
+        # tutulur - calculate_default_transform'un kendi hesapladığı
+        # "en iyi" çözünürlük birkaç santim farklı çıkabiliyor, bu da
+        # stream_mosaic'in pencere/veri boyutu uyuşmazlığına düşmesine
+        # (dolayısıyla mozaikleme sırasında ValueError'a) yol açıyordu.
+        src_res = abs(src.transform.a)
+        transform, width, height = calculate_default_transform(
+            src.crs, dst_crs, src.width, src.height, *src.bounds, resolution=(src_res, src_res)
+        )
+        out_profile = src.profile.copy()
+        out_profile.update({"crs": dst_crs, "transform": transform, "width": width,
+                             "height": height, "nodata": nodata_val})
+        with rasterio.open(dst_path, "w", **out_profile) as dst:
+            reproject(
+                source=rasterio.band(src, 1), destination=rasterio.band(dst, 1),
+                src_transform=src.transform, src_crs=src.crs,
+                dst_transform=transform, dst_crs=dst_crs,
+                src_nodata=src.nodata, dst_nodata=nodata_val,
+                resampling=Resampling.bilinear,
+            )
 
 
 def build_output_profile(temp_paths: list[Path]) -> dict:
@@ -146,6 +181,20 @@ def build_lst_ndvi_mosaic(config: CityConfig, year: str, main_year: str) -> tupl
         ndvi_temp = scene_dir / "ndvi_temp.tif"
         save_geotiff(lst, lst_temp, profile)
         save_geotiff(ndvi, ndvi_temp, profile)
+
+        # Bbox'ı geniş bir şehir, iki komşu UTM diliminde işlenmiş Landsat
+        # sahnelerini bir arada seçebilir (bkz. reproject_to_crs docstring'i).
+        # Böyle bir sahne mozaiklemeden önce config.crs'e getirilir; aksi
+        # halde stream_mosaic sahneyi (aynı sayısal koordinatlar farklı
+        # anlama geldiği için) yanlış konuma yapıştırır.
+        scene_crs = str(profile["crs"])
+        if scene_crs != str(config.crs):
+            print(f"[{year}] {s['folder']}: {scene_crs} -> {config.crs} yeniden izdüşürülüyor")
+            lst_reproj, ndvi_reproj = scene_dir / "lst_temp_reproj.tif", scene_dir / "ndvi_temp_reproj.tif"
+            reproject_to_crs(lst_temp, lst_reproj, config.crs)
+            reproject_to_crs(ndvi_temp, ndvi_reproj, config.crs)
+            lst_temp, ndvi_temp = lst_reproj, ndvi_reproj
+
         lst_temp_paths.append(lst_temp)
         ndvi_temp_paths.append(ndvi_temp)
 

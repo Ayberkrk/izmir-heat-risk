@@ -40,6 +40,7 @@ import requests
 
 from core.city_config import CityConfig
 from core.paths import city_data_raw
+from core.text_utils import normalize_name
 
 CKAN_REQUEST_TIMEOUT_SECONDS = 30
 
@@ -82,15 +83,6 @@ def fetch_population_data(config: CityConfig) -> dict[str, Path]:
             raise ValueError(f"{package_id} CSV kaynağı boş/şüpheli görünüyor (CSV değil, HTML olabilir): {url}")
         local_path.write_bytes(r.content)
     return local_paths
-
-
-def normalize_name(s: str) -> str:
-    """Türkçe yer adlarını karşılaştırılabilir standart forma çevirir."""
-    s = str(s).upper().strip()
-    for tr_char, ascii_char in {"İ": "I", "Ş": "S", "Ğ": "G", "Ü": "U", "Ö": "O", "Ç": "C"}.items():
-        s = s.replace(tr_char, ascii_char)
-    s = re.sub(r"\s+MAHALLESI$", "", s)
-    return re.sub(r"\s+", " ", s)
 
 
 CHILD_AGE_GROUPS = {"0-4", "5-9", "10-14"}

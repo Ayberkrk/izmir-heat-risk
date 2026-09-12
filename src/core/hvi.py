@@ -52,6 +52,7 @@ import jenkspy
 import numpy as np
 import pandas as pd
 
+from core.cache import is_cache_valid, write_cache_meta
 from core.city_config import CityConfig, load_population_adapter
 from core.osm_amenities import load_building_centroids, load_green_space_polygons, load_health_points
 from core.paths import city_data_proc, city_data_raw
@@ -79,6 +80,12 @@ BUILDING_DENSITY_BUFFER_M = 150
 # Geometrik ortalama alınmadan önce her bileşenin ölçekleneceği alt sınır
 # (gerekçesi `compute_heat_vulnerability_index` içinde).
 COMPONENT_FLOOR = 0.05
+
+# Çıktının formül sürümü - bileşen sayısı, birleştirme yöntemi (geometrik
+# ortalama), COMPONENT_FLOOR veya BUILDING_DENSITY_BUFFER_M değiştiğinde
+# artırılmalı; aksi halde eski `roads_with_hvi.geojson` güncel formülle
+# üretilmiş gibi kullanılmaya devam eder (bkz. core/cache.py).
+HVI_FORMULA_VERSION = 1
 
 
 def normalize_0_1(series: pd.Series) -> pd.Series:
@@ -162,14 +169,14 @@ def _building_density_per_km2(building_centroids_utm: gpd.GeoDataFrame, roads_ut
 
 
 def compute_heat_vulnerability_index(config: CityConfig, years: list[str],
-                                      roads: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+                                      roads: gpd.GeoDataFrame, force: bool = False) -> gpd.GeoDataFrame:
     """Çok bileşenli HVI'yi hesaplar; her bileşenin normalize değerini ve nihai
     skoru/kategoriyi GeoJSON'a yazacak sütunlar olarak ekler.
     """
     data_raw = city_data_raw(config.city_id)
     output_path = city_data_proc(config.city_id) / "roads_with_hvi.geojson"
-    if output_path.exists():
-        print("roads_with_hvi.geojson zaten mevcut, atlanıyor")
+    if is_cache_valid(output_path, HVI_FORMULA_VERSION, force=force):
+        print("roads_with_hvi.geojson güncel, atlanıyor")
         return gpd.read_file(output_path)
 
     adapter = load_population_adapter(config)
@@ -334,5 +341,6 @@ def compute_heat_vulnerability_index(config: CityConfig, years: list[str],
         roads[f"hvi_category_{year}"] = roads[f"hvi_category_{year}"].astype(str)
 
     roads.to_file(output_path, driver="GeoJSON")
+    write_cache_meta(output_path, HVI_FORMULA_VERSION)
     print(f"Kaydedildi: {output_path.name} ({len(roads):,} yol segmenti)")
     return roads

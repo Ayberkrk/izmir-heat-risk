@@ -1,0 +1,49 @@
+# Eskişehir'e özel parametreler.
+#
+# Bu dosya src/core/city_config.py tarafından okunur. İzmir'in aksine
+# Eskişehir Büyükşehir Belediyesi'nin İzmir'inkine benzer bir CKAN açık
+# veri portalı yok - bu yüzden nüfus/yaş verisi TÜİK'in resmi, herkese
+# açık ADNKS ve SEGE-2022 yayınlarından statik referans CSV olarak alındı
+# (bkz. adapter.py ve ilce_nufus.csv/sege_2022_ilce.csv). Bu, "her şehrin
+# kendi belediye portalı olmalı" varsayımına bağlı kalmadan, TÜİK verisi
+# olan HERHANGİ bir Türkiye şehrinin eklenebileceğini gösteren ikinci bir
+# şehir örneğidir.
+
+city:
+  name: "Eskişehir"
+  # Kentsel çekirdek: Odunpazarı + Tepebaşı (büyükşehrin iki merkez ilçesi).
+  # İzmir'deki gibi uzak/kırsal ilçeler (Mahmudiye, Seyitgazi, Sivrihisar...)
+  # bilinçli olarak dışarıda bırakıldı.
+  bbox: [30.38, 39.68, 30.66, 39.86]  # [batı, güney, doğu, kuzey]
+  crs: "EPSG:32636"  # UTM 36N - Eskişehir 30°E'nin doğusunda (İzmir'in 32635/UTM 35N'inden farklı)
+  attribution: "Nüfus: TÜİK ADNKS 2025, SEGE-2022 (T.C. Sanayi ve Teknoloji Bakanlığı)."
+
+landsat:
+  max_cloud_cover: 30
+
+osm:
+  # download.openstreetmap.fr, Türkiye'yi bölgelere ayırıyor - Eskişehir
+  # İç Anadolu bölgesinde (aegean-latest.osm.pbf'in İzmir karşılığı).
+  pbf_url: "https://download.openstreetmap.fr/extracts/europe/turkey/central_anatolia-latest.osm.pbf"
+  admin_level_ilce: 6
+  admin_level_mahalle: 8
+  highway_types:
+    - motorway
+    - trunk
+    - primary
+    - secondary
+    - tertiary
+    - residential
+    - living_street
+    - unclassified
+    - motorway_link
+    - trunk_link
+    - primary_link
+    - secondary_link
+    - tertiary_link
+
+roads:
+  buffer_meters: 10
+
+population:
+  adapter: "cities.eskisehir.adapter"

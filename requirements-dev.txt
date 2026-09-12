@@ -1,0 +1,4 @@
+# Geliştirme/test bağımlılıkları - üretim ortamında gerekmez.
+# Kurulum: pip install -r requirements.txt -r requirements-dev.txt
+
+pytest>=8.0
