@@ -23,6 +23,11 @@ BANDS_TO_DOWNLOAD = {
     "red": "band4_red.tif",
     "nir08": "band5_nir.tif",
     "lwir11": "band10_thermal.tif",
+    # Piksel düzeyinde bulut/gölge/kar maskesi için (bkz. core/raster.py,
+    # qa_invalid_mask) - sahne düzeyindeki eo:cloud_cover filtresi tek
+    # başına yeterli değil, düşük bulut oranlı bir sahnenin bulutunun küçük
+    # bir kısmı doğrudan çalışma alanının üzerine düşebilir.
+    "qa_pixel": "band_qa_pixel.tif",
 }
 DOWNLOAD_TIMEOUT_SECONDS = 300
 

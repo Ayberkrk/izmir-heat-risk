@@ -19,12 +19,62 @@ from rasterio.windows import from_bounds as window_from_bounds
 from core.city_config import CityConfig
 from core.paths import year_paths
 
+# Landsat Collection 2 Level-2 QA_PIXEL bit bayrakları (USGS LSDS-1328).
+# Her bit tek başına o sınıfın varlığını işaret eder; "confidence" bitleri
+# (8'den itibaren) burada kullanılmıyor, sınıfın kendisi yeterli.
+QA_BIT_FILL = 0
+QA_BIT_DILATED_CLOUD = 1
+QA_BIT_CIRRUS = 2
+QA_BIT_CLOUD = 3
+QA_BIT_CLOUD_SHADOW = 4
+QA_BIT_SNOW = 5
 
-def compute_lst(thermal_path: Path) -> tuple[np.ndarray, dict]:
+# LST/NDVI hesaplarından dışlanacak sınıflar (bkz. issue kabul kriterleri).
+QA_INVALID_BITS = (
+    QA_BIT_FILL,
+    QA_BIT_DILATED_CLOUD,
+    QA_BIT_CIRRUS,
+    QA_BIT_CLOUD,
+    QA_BIT_CLOUD_SHADOW,
+    QA_BIT_SNOW,
+)
+
+
+def qa_invalid_mask(qa_values: np.ndarray) -> np.ndarray:
+    """QA_PIXEL değerlerinden geçersiz (bulut/gölge/kar/dolgu) pikselleri işaretler.
+
+    Sahne düzeyindeki `eo:cloud_cover` filtresi tek başına yeterli değil:
+    toplam bulut oranı düşük bir sahnede bile bulutun küçük bir kısmı
+    doğrudan çalışma alanının üzerine düşebilir. Dönen dizi, True olan
+    piksellerin NaN/nodata yapılması gerektiği anlamına gelir.
+    """
+    qa_int = qa_values.astype(np.uint16)
+    invalid = np.zeros(qa_int.shape, dtype=bool)
+    for bit in QA_INVALID_BITS:
+        invalid |= (qa_int & np.uint16(1 << bit)) != 0
+    return invalid
+
+
+def load_qa_mask(qa_path: Path) -> np.ndarray:
+    """QA_PIXEL bandını okuyup geçersiz piksel maskesini döndürür.
+
+    Maske, mozaikleme/yeniden izdüşürmeden önce sahnenin kendi piksel
+    ızgarasında uygulanır (bkz. build_lst_ndvi_mosaic) - kategorik QA
+    verisini bilinear yeniden örneklemeye gerek kalmaz.
+    """
+    with rasterio.open(qa_path) as src:
+        qa_values = src.read(1)
+    return qa_invalid_mask(qa_values)
+
+
+def compute_lst(thermal_path: Path, qa_mask: np.ndarray | None = None) -> tuple[np.ndarray, dict]:
     """Landsat Level-2 termal banttan yüzey sıcaklığını (°C) hesaplar.
 
     Level-2 ürünlerde USGS bandı zaten sıcaklığa kalibre etmiş olduğu için
     tek yapılan iş ölçek dönüşümü: piksel × 0.00341802 + 149.0 → Kelvin.
+
+    `qa_mask` verilirse (bkz. load_qa_mask) True olan pikseller - bulut,
+    cirrus, bulut gölgesi, kar veya dolgu - NaN yapılır.
     """
     with rasterio.open(thermal_path) as src:
         thermal_raw = src.read(1).astype(np.float32)
@@ -33,12 +83,18 @@ def compute_lst(thermal_path: Path) -> tuple[np.ndarray, dict]:
 
     if nodata is not None:
         thermal_raw = np.where(thermal_raw == nodata, np.nan, thermal_raw)
+    if qa_mask is not None:
+        thermal_raw = np.where(qa_mask, np.nan, thermal_raw)
 
     lst_kelvin = thermal_raw * 0.00341802 + 149.0
     return lst_kelvin - 273.15, profile
 
 
-def compute_ndvi(red_path: Path, nir_path: Path) -> np.ndarray:
+def compute_ndvi(red_path: Path, nir_path: Path, qa_mask: np.ndarray | None = None) -> np.ndarray:
+    """Kırmızı ve NIR banttan NDVI hesaplar.
+
+    `qa_mask` verilirse (bkz. load_qa_mask) True olan pikseller NaN yapılır.
+    """
     with rasterio.open(red_path) as src:
         red = src.read(1).astype(np.float32)
         red_nodata = src.nodata
@@ -50,6 +106,9 @@ def compute_ndvi(red_path: Path, nir_path: Path) -> np.ndarray:
         red = np.where(red == red_nodata, np.nan, red)
     if nir_nodata is not None:
         nir = np.where(nir == nir_nodata, np.nan, nir)
+    if qa_mask is not None:
+        red = np.where(qa_mask, np.nan, red)
+        nir = np.where(qa_mask, np.nan, nir)
 
     red_sr = np.where(red * 0.0000275 - 0.2 < 0, np.nan, red * 0.0000275 - 0.2)
     nir_sr = np.where(nir * 0.0000275 - 0.2 < 0, np.nan, nir * 0.0000275 - 0.2)
@@ -174,8 +233,11 @@ def build_lst_ndvi_mosaic(config: CityConfig, year: str, main_year: str) -> tupl
     lst_temp_paths, ndvi_temp_paths = [], []
     for s in scenes:
         scene_dir = data_raw / s["folder"]
-        lst, profile = compute_lst(scene_dir / "band10_thermal.tif")
-        ndvi = compute_ndvi(scene_dir / "band4_red.tif", scene_dir / "band5_nir.tif")
+        qa_mask = load_qa_mask(scene_dir / "band_qa_pixel.tif")
+        lst, profile = compute_lst(scene_dir / "band10_thermal.tif", qa_mask=qa_mask)
+        ndvi = compute_ndvi(
+            scene_dir / "band4_red.tif", scene_dir / "band5_nir.tif", qa_mask=qa_mask
+        )
 
         lst_temp = scene_dir / "lst_temp.tif"
         ndvi_temp = scene_dir / "ndvi_temp.tif"

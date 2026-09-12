@@ -1,5 +1,33 @@
 # Kentsel Isı Adası ve Isı Hassasiyet Endeksi (HVI)
 
+## English summary
+
+An open-data, reproducible urban heat risk pipeline. It combines Landsat
+land surface temperature (LST), the OpenStreetMap road network, and
+demographic data into a street-level, explainable Heat Vulnerability Index
+(HVI): Landsat LST/NDVI, a road-to-temperature spatial join, a 9-component
+geometric-mean HVI (temperature, tree canopy, population density,
+elderly/child population share, distance to hospital/pharmacy, distance to
+green space, built-up density), and pixel-level Jenks natural-breaks
+categorization shared across years. The architecture is city-agnostic -
+`src/core/` never changes when a new city is added; Izmir and Eskişehir are
+the two supported examples today (see [CONTRIBUTING.md](CONTRIBUTING.md) to
+add another).
+
+Quick start (produces a single-file interactive HTML map):
+
+```bash
+python pipeline.py --city izmir --years 2020 2026 --main-year 2026 --open
+```
+
+The rest of this README - methodology, findings, setup, project layout,
+known limitations - is in Turkish (this is an Izmir/Türkiye-focused
+project). Machine translation works well if you want the full detail; the
+summary above and the code/docstrings should be enough to navigate the
+repository.
+
+---
+
 Açık verilerle çalışan, tekrar üretilebilir bir kentsel ısı riski analiz hattı.
 Landsat yüzey sıcaklığı, OpenStreetMap yol ağı ve demografik verileri
 birleştirerek ısı riskini sokak ölçeğinde haritalar. Şehirden bağımsız bir
@@ -16,6 +44,8 @@ birkaç dakikada yerelde üretilir:
 ```bash
 python pipeline.py --city izmir --years 2020 2026 --main-year 2026 --open
 ```
+
+![İzmir HVI interaktif haritası: yol ağı Isı Hassasiyet Endeksi'ne göre turuncudan bordoya renklendirilmiş, sağ üstte katman kontrolü, sol altta yıl seçici ve gösterge](assets/screenshots/harita-genel.png)
 
 ## İçindekiler
 
@@ -115,6 +145,15 @@ LST(°C) = LST(K) - 273.15
 Bulutlar kızılötesiyi bozduğu için her sahne aranırken bulut oranı %30'un
 altında tutulur ve her uydu karosu (path/row) için mevcut en temiz tarih
 seçilir.
+
+Sahne düzeyindeki düşük bulut oranı tek başına yeterli değil: toplam bulut
+oranı düşük bir sahnede bile bulutun küçük bir kısmı doğrudan çalışma
+alanının üzerine düşebilir. Bu yüzden `QA_PIXEL` bandı da indirilip LST ve
+NDVI hesaplanmadan önce, sahnenin kendi piksel ızgarasında (mozaikleme ve
+yeniden izdüşürmeden önce) piksel düzeyinde bir bulut maskesi uygulanır:
+fill, dilated cloud, cirrus, cloud, cloud shadow ve snow bayraklarından
+herhangi biri taşıyan pikseller `NaN`/nodata yapılır (`core/raster.py`,
+`qa_invalid_mask`).
 
 **UTM dilim sınırındaki şehirler:** USGS her Landsat sahnesini kendi
 merkezine en yakın UTM dilimine işler. Bir şehrin bbox'ı iki komşu path/row
