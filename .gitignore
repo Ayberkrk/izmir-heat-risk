@@ -1,0 +1,22 @@
+# Sanal ortam
+venv/
+.venv/
+
+# Ham ve işlenmiş veri - pipeline.py ile yeniden üretilebilir, büyük (GB'larca)
+data/raw/
+data/processed/
+
+# Üretilen çıktılar - hepsi pipeline.py ile yeniden üretilebilir.
+# Harita HTML'i 60 MB'ı aştığı için (GitHub 50 MB'da uyarır, 100 MB'da
+# reddeder) depoda tutulmuyor; üretme komutu README'nin başında.
+output/
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+*.egg-info/
+
+# Editör / OS
+.DS_Store
+.vscode/

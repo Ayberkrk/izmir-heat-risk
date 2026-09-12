@@ -1,0 +1,50 @@
+# İzmir'e özel parametreler.
+#
+# Bu dosya src/core/city_config.py tarafından okunur ve pipeline'ın geri
+# kalanına hiçbir şehir adı/koordinat/URL hardcode edilmeden aktarılır.
+# Başka bir şehir eklemek için bu dosyayı örnek alıp CONTRIBUTING.md'deki
+# adımları izleyin.
+
+city:
+  name: "İzmir"
+  # İzmir büyükşehir çekirdeği: Karşıyaka, Çiğli, Bornova, Konak, Bayraklı,
+  # Buca, Gaziemir, Balçova, Narlıdere. Uzak/kırsal ilçeler (Çeşme, Foça,
+  # Bergama, Kemalpaşa...) bilinçli olarak dışarıda bırakıldı.
+  bbox: [26.54, 38.22, 27.38, 38.58]  # [batı, güney, doğu, kuzey]
+  crs: "EPSG:32635"  # UTM 35N - Türkiye için metre cinsinden CRS
+  # Harita künyesinde gösterilecek veri kaynağı satırı (isteğe bağlı).
+  attribution: "Nüfus: İzmir B.Ş.B. Açık Veri Portalı, TÜİK."
+
+landsat:
+  max_cloud_cover: 30
+
+osm:
+  pbf_url: "https://download.openstreetmap.fr/extracts/europe/turkey/aegean-latest.osm.pbf"
+  admin_level_ilce: 6
+  admin_level_mahalle: 8
+  highway_types:
+    - motorway
+    - trunk
+    - primary
+    - secondary
+    - tertiary
+    - residential
+    - living_street
+    - unclassified
+    - motorway_link
+    - trunk_link
+    - primary_link
+    - secondary_link
+    - tertiary_link
+
+roads:
+  buffer_meters: 10
+
+population:
+  # Şehre özel adapter modülü - fetch_population_data() ve
+  # build_neighborhood_layer() fonksiyonlarını uygular.
+  adapter: "cities.izmir.adapter"
+  ckan_base: "https://acikveri.bizizmir.com"
+  datasets:
+    yas_grubu: "izmir-ilceleri-yas-grubuna-gore-nufus-bilgileri"
+    mahalle_nufus: "cinsiyete-gore-mahalle-nufus-bilgileri"

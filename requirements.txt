@@ -1,0 +1,35 @@
+# İzmir Kentsel Isı Adası Analizi - Gerekli Kütüphaneler
+# Kurulum: pip install -r requirements.txt
+# Python 3.12 ile test edilmiştir.
+
+# Uydu verisi çekme (Microsoft Planetary Computer üzerinden)
+pystac-client>=0.7
+planetary-computer>=1.0
+
+# Raster (piksel bazlı görüntü) okuma/yazma
+rasterio>=1.3
+
+# Matematiksel işlemler (dizi/matris hesapları)
+numpy>=1.26
+
+# Vektör (nokta, çizgi, poligon) işleme
+geopandas>=0.14
+shapely>=2.0
+
+# Raster üzerinde istatistik hesaplama (spatial join)
+rasterstats>=0.19
+
+# İnteraktif harita oluşturma
+folium>=0.16
+
+# HTTP istekleri (API'ye bağlanmak için)
+requests>=2.31
+
+# Veri tablosu işlemleri
+pandas>=2.0
+
+# Jenks doğal kırılım sınıflandırması (HVI kategorileri için)
+jenkspy>=0.4
+
+# Şehir config.yaml dosyalarını okumak için
+pyyaml>=6.0
