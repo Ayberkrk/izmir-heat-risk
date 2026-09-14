@@ -24,3 +24,7 @@ __pycache__/
 # Editör / OS
 .DS_Store
 .vscode/
+
+# Claude Code oturum notları - makine/oturuma özel (ör. bu makinenin RAM'i
+# gibi donanım notları), repoya dahil edilmesi amaçlanmıyor.
+CLAUDE.md
