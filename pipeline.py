@@ -44,7 +44,7 @@ from core.city_config import load_city_config  # noqa: E402
 from core.hvi import compute_heat_vulnerability_index  # noqa: E402
 from core.map_builder import build_hvi_map  # noqa: E402
 from core.night_lst import compute_neighborhood_night_lst, fetch_night_lst  # noqa: E402
-from core.paths import city_data_raw  # noqa: E402
+from core.paths import resolve_pbf_path  # noqa: E402
 from core.raster import build_lst_ndvi_mosaic  # noqa: E402
 from core.roads import compute_road_risk_timeseries  # noqa: E402
 from core.satellite import fetch_landsat_scenes  # noqa: E402
@@ -66,9 +66,7 @@ def run(city_id: str, years: list[str], main_year: str, open_browser: bool,
         # Ayrı, isteğe bağlı bir adım - MODIS gece LST'si yol bazlı HVI'nin
         # bir bileşeni değil, mahalle ölçeğinde ayrı bir katman (bkz.
         # core/night_lst.py modül docstring'i).
-        pbf_path = city_data_raw(config.city_id) / f"{config.city_id}.osm.pbf"
-        if not pbf_path.exists():
-            pbf_path = city_data_raw(config.city_id) / "aegean-latest.osm.pbf"
+        pbf_path = resolve_pbf_path(config.city_id)
         night_lst_tif = fetch_night_lst(config, main_year)
         compute_neighborhood_night_lst(config, pbf_path, night_lst_tif, main_year)
 

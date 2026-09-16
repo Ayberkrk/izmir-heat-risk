@@ -1,5 +1,7 @@
 # Kentsel Isı Adası ve Isı Hassasiyet Endeksi (HVI)
 
+[![Testler](https://github.com/Ayberkrk/izmir-heat-risk/actions/workflows/tests.yml/badge.svg)](https://github.com/Ayberkrk/izmir-heat-risk/actions/workflows/tests.yml)
+
 ## English summary
 
 An open-data, reproducible urban heat risk pipeline. It combines Landsat
@@ -372,6 +374,16 @@ source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+`requirements.txt`'teki sürüm aralıkları major sürüm kırılımlarına karşı
+üst sınırlıdır ama yine de bir aralıktır; bugün çalışan tam ortamı birebir
+yeniden üretmek için (`rasterio`/`geopandas` gibi GDAL tabanlı paketler
+minor sürümde bile davranış değiştirebiliyor) `constraints.txt`'teki
+sabitlenmiş sürümlerle kurun:
+
+```bash
+pip install -r requirements.txt -c constraints.txt
+```
+
 Tüm hattı (indirme → LST/NDVI → yol eşleme → HVI → harita) çalıştırmak için:
 
 ```bash
@@ -408,6 +420,10 @@ içinde çalışır:
 pip install -r requirements.txt -r requirements-dev.txt
 pytest
 ```
+
+`.github/workflows/tests.yml` aynı suite'i her push ve PR'da otomatik
+çalıştırır - bir katkı (ör. yeni bir şehir adaptörü) testleri kırıyorsa
+merge edilmeden önce görünür.
 
 ## Docker ile çalıştırma
 

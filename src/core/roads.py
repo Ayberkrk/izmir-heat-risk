@@ -14,7 +14,7 @@ import requests
 
 from core.cache import is_cache_valid, write_cache_meta
 from core.city_config import CityConfig
-from core.paths import city_data_proc, city_data_raw, year_paths
+from core.paths import city_data_proc, city_data_raw, resolve_pbf_path, year_paths
 
 OSM_DOWNLOAD_TIMEOUT_SECONDS = 300
 
@@ -31,14 +31,8 @@ def fetch_road_network(config: CityConfig) -> gpd.GeoDataFrame:
     yerelden okunuyor - daha öngörülebilir ve hızlı.
     """
     data_raw = city_data_raw(config.city_id)
-    pbf_path = data_raw / f"{config.city_id}.osm.pbf"
-    legacy_pbf_path = data_raw / "aegean-latest.osm.pbf"
     data_raw.mkdir(parents=True, exist_ok=True)
-
-    # Geriye dönük uyumluluk: İzmir için diskte zaten `aegean-latest.osm.pbf`
-    # var; yeniden indirmemek için önce bu köklü dosya adını dener.
-    if not pbf_path.exists() and legacy_pbf_path.exists():
-        pbf_path = legacy_pbf_path
+    pbf_path = resolve_pbf_path(config.city_id)
 
     if not pbf_path.exists():
         print(f"{config.name} için OSM özütü indiriliyor: {config.osm_pbf_url}")

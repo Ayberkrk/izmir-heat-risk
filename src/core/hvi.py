@@ -55,7 +55,7 @@ import pandas as pd
 from core.cache import is_cache_valid, write_cache_meta
 from core.city_config import CityConfig, load_population_adapter
 from core.osm_amenities import load_building_centroids, load_green_space_polygons, load_health_points
-from core.paths import city_data_proc, city_data_raw
+from core.paths import city_data_proc, resolve_pbf_path
 
 CATEGORY_COLORS_5 = {
     "Düşük": "#3182bd",
@@ -173,7 +173,6 @@ def compute_heat_vulnerability_index(config: CityConfig, years: list[str],
     """Çok bileşenli HVI'yi hesaplar; her bileşenin normalize değerini ve nihai
     skoru/kategoriyi GeoJSON'a yazacak sütunlar olarak ekler.
     """
-    data_raw = city_data_raw(config.city_id)
     output_path = city_data_proc(config.city_id) / "roads_with_hvi.geojson"
     if is_cache_valid(output_path, HVI_FORMULA_VERSION, force=force):
         print("roads_with_hvi.geojson güncel, atlanıyor")
@@ -181,9 +180,7 @@ def compute_heat_vulnerability_index(config: CityConfig, years: list[str],
 
     adapter = load_population_adapter(config)
     population_paths = adapter.fetch_population_data(config)
-    pbf_path = data_raw / f"{config.city_id}.osm.pbf"
-    if not pbf_path.exists():
-        pbf_path = data_raw / "aegean-latest.osm.pbf"  # İzmir eski dosya adı
+    pbf_path = resolve_pbf_path(config.city_id)
     mahalle_gdf = adapter.build_neighborhood_layer(pbf_path, population_paths, config)
 
     roads = roads.copy()

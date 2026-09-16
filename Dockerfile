@@ -13,8 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt constraints.txt .
+# constraints.txt tam sürümleri sabitler - imajın "bugün çalışıyorsa
+# yarın da aynı çalışır" garantisi buna dayanıyor (bkz. constraints.txt).
+RUN pip install --no-cache-dir -r requirements.txt -c constraints.txt
 
 COPY . .
 

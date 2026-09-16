@@ -35,6 +35,29 @@ def city_data_proc(city_id: str) -> Path:
     return _DATA_PROC_ROOT / city_id
 
 
+# İzmir'in şehir ayrımı eklenmeden önceki OSM pbf dosya adı. Bu tek yerde
+# tutulur - roads.py, hvi.py ve pipeline.py'nin üçü de aynı geriye dönük
+# uyumluluk kontrolünü kopyalamak yerine `resolve_pbf_path`'i çağırır.
+_LEGACY_IZMIR_PBF_FILENAME = "aegean-latest.osm.pbf"
+
+
+def resolve_pbf_path(city_id: str) -> Path:
+    """Bir şehrin OSM pbf dosya yolunu döndürür.
+
+    Standart ad `<city_id>.osm.pbf` diskte yoksa, İzmir için şehir ayrımı
+    eklenmeden önce kullanılan `aegean-latest.osm.pbf` adına bakar - böylece
+    mevcut İzmir kullanıcıları dosyayı yeniden indirmek zorunda kalmaz. Yeni
+    bir şehir için bu her zaman standart adı döndürür (legacy dosya hiç
+    var olmadığından core/hiçbir şey şehre özel kalmaz).
+    """
+    data_raw = city_data_raw(city_id)
+    pbf_path = data_raw / f"{city_id}.osm.pbf"
+    legacy_pbf_path = data_raw / _LEGACY_IZMIR_PBF_FILENAME
+    if not pbf_path.exists() and legacy_pbf_path.exists():
+        return legacy_pbf_path
+    return pbf_path
+
+
 def year_paths(city_id: str, year: str, main_year: str) -> tuple[Path, Path]:
     """Bir şehrin/yılın ham/işlenmiş veri klasörlerini döndürür.
 

@@ -1,0 +1,23 @@
+# Tam yeniden üretilebilirlik için - requirements.txt'teki >= aralığı
+# yerine bilinen çalışan tam sürümleri sabitler (rasterio/geopandas gibi
+# GDAL tabanlı paketler minor/major sürüm farkında bile farklı sonuç
+# üretebilir). Python 3.12 ile test edilmiştir.
+#
+# Kullanım:
+#   pip install -r requirements.txt -c constraints.txt
+#
+# Güncellemek için: temiz bir venv'de requirements.txt kurulup
+# `pip freeze` ile yeniden üretilebilir.
+
+folium==0.20.0
+geopandas==1.1.4
+jenkspy==0.4.1
+numpy==2.5.2
+pandas==3.0.5
+planetary-computer==1.0.0
+pystac-client==0.9.0
+pyyaml==6.0.3
+rasterio==1.5.1
+rasterstats==0.21.0
+requests==2.34.2
+shapely==2.1.2

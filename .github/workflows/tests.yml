@@ -1,0 +1,28 @@
+name: Testler
+
+# Her push ve PR'da tests/ altındaki pytest suite'ini çalıştırır - README'nin
+# "Testler" bölümünde belgelenen doğrulama adımı, katkılar (ör. yeni bir
+# şehir adaptörü) merge edilmeden önce otomatik uygulanır.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Bağımlılıkları kur
+        run: pip install -r requirements.txt -r requirements-dev.txt -c constraints.txt
+
+      - name: pytest
+        env:
+          PYTHONPATH: src
+        run: python -m pytest tests/ -v
