@@ -20,6 +20,10 @@ city:
 
 landsat:
   max_cloud_cover: 30
+  # Karo (path/row) başına en fazla kaç sahnenin indirilip medyanla
+  # kompozitleneceği - tek sahneye kıyasla tek-günlük anomalilerin
+  # (bulut, toprak nemi) etkisini azaltır (bkz. README "Metodoloji").
+  max_scenes_per_tile: 3
 
 osm:
   # download.openstreetmap.fr, Türkiye'yi bölgelere ayırıyor - Eskişehir

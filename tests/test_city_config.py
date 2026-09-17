@@ -46,3 +46,16 @@ def test_missing_osm_required_key_is_reported():
     cfg = {**VALID_CONFIG, "osm": {"pbf_url": "https://example.com/test.osm.pbf"}}
     errors = validate_config_dict(cfg)
     assert any("highway_types" in e for e in errors)
+
+
+@pytest.mark.parametrize("bad_crs", ["not-a-crs", "EPSG:999999999", ""])
+def test_invalid_crs_is_rejected(bad_crs):
+    cfg = {**VALID_CONFIG, "city": {**VALID_CONFIG["city"], "crs": bad_crs}}
+    errors = validate_config_dict(cfg)
+    assert any("crs" in e for e in errors)
+
+
+@pytest.mark.parametrize("good_crs", ["EPSG:32635", "EPSG:4326", "EPSG:32636"])
+def test_valid_epsg_crs_is_accepted(good_crs):
+    cfg = {**VALID_CONFIG, "city": {**VALID_CONFIG["city"], "crs": good_crs}}
+    assert validate_config_dict(cfg) == []

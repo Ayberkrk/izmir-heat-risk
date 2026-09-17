@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import gc
 import json
+import warnings
+from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -16,8 +18,16 @@ from rasterio.transform import Affine
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 from rasterio.windows import from_bounds as window_from_bounds
 
+from core.cache import is_cache_valid, write_cache_meta
 from core.city_config import CityConfig
 from core.paths import year_paths
+
+# build_lst_ndvi_mosaic() çıktısının formül sürümü (bkz. core/cache.py).
+# Daha önce bu fonksiyon düz `.exists()` kontrolü kullanıyordu; versiyonlu
+# önbelleğe geçişin kendisi, sürüm dosyası (`.meta.json`) taşımayan eski
+# (karo başına tek sahne varsayan) mozaikleri otomatik geçersiz sayar - bir
+# sonraki `pipeline.py` çalıştırmasında yeniden indirilip hesaplanırlar.
+MOSAIC_VERSION = 1
 
 # Landsat Collection 2 Level-2 QA_PIXEL bit bayrakları (USGS LSDS-1328).
 # Her bit tek başına o sınıfın varlığını işaret eder; "confidence" bitleri
@@ -116,6 +126,30 @@ def compute_ndvi(red_path: Path, nir_path: Path, qa_mask: np.ndarray | None = No
     with np.errstate(invalid="ignore", divide="ignore"):
         ndvi = (nir_sr - red_sr) / (nir_sr + red_sr)
     return np.clip(ndvi, -1.0, 1.0)
+
+
+def composite_scene_arrays(arrays: list[np.ndarray]) -> np.ndarray:
+    """Aynı karonun (path/row) birden fazla sahnesini piksel bazlı medyanla
+    tek bir diziye indirger.
+
+    Medyan, aritmetik ortalamadan daha dayanıklıdır - aykırı tek bir
+    bulutlu/anormal günün sonucu domine etmesini engeller (bkz. README
+    "Metodolojik uyarı"). QA maskesinden geçmiş `NaN`'ler `nanmedian`
+    tarafından otomatik dışlanır; bir pikselde TÜM sahneler NaN ise sonuç
+    da NaN kalır (`save_geotiff` bunu zaten nodata'ya çevirir).
+
+    Tek elemanlı bir liste için `arrays[0]` ile birebir aynıdır -
+    `max_scenes_per_tile=1` (eski varsayılan) davranışı değişmez.
+    """
+    if len(arrays) == 1:
+        return arrays[0]
+    stacked = np.stack(arrays, axis=0)
+    with warnings.catch_warnings():
+        # Sürekli bulutlu bir bölgede bir piksel TÜM sahnelerde NaN olabilir
+        # - nanmedian bunun için "All-NaN slice" uyarısı verir ama doğru
+        # şekilde NaN döner, bu beklenen/zararsız bir durumdur.
+        warnings.filterwarnings("ignore", message="All-NaN slice encountered")
+        return np.nanmedian(stacked, axis=0).astype(np.float32)
 
 
 def save_geotiff(array: np.ndarray, output_path: Path, profile: dict, nodata_val: float = -9999.0) -> None:
@@ -217,42 +251,69 @@ def stream_mosaic(temp_paths: list[Path], out_path: Path, out_profile: dict) -> 
             gc.collect()
 
 
-def build_lst_ndvi_mosaic(config: CityConfig, year: str, main_year: str) -> tuple[Path, Path]:
+def build_lst_ndvi_mosaic(config: CityConfig, year: str, main_year: str, force: bool = False) -> tuple[Path, Path]:
+    """Karo (path/row) başına bir veya daha fazla sahneyi LST/NDVI'ye çevirip
+    tek bir şehir mozaiğinde birleştirir.
+
+    `scene_metadata.json`'daki sahneler önce `"tile"` alanına göre gruplanır
+    - `config.max_scenes_per_tile > 1` ise aynı karonun birden fazla sahnesi
+    olabilir; bu grup `composite_scene_arrays()` ile piksel bazlı medyana
+    indirgenip TEK bir karo kompoziti olarak reprojeksiyon/mozaikleme
+    akışına girer (`max_scenes_per_tile=1` ile eski tek-sahne davranışı
+    birebir korunur).
+    """
     data_raw, data_proc = year_paths(config.city_id, year, main_year)
     data_proc.mkdir(parents=True, exist_ok=True)
     lst_path = data_proc / "lst_celsius.tif"
     ndvi_path = data_proc / "ndvi.tif"
 
-    if lst_path.exists() and ndvi_path.exists():
+    if is_cache_valid(lst_path, MOSAIC_VERSION, force=force) and ndvi_path.exists():
         print(f"[{year}] mozaik zaten mevcut, atlanıyor")
         return lst_path, ndvi_path
 
     with open(data_raw / "scene_metadata.json", encoding="utf-8") as f:
         scenes = json.load(f)["scenes"]
 
-    lst_temp_paths, ndvi_temp_paths = [], []
+    scenes_by_tile = defaultdict(list)
     for s in scenes:
-        scene_dir = data_raw / s["folder"]
-        qa_mask = load_qa_mask(scene_dir / "band_qa_pixel.tif")
-        lst, profile = compute_lst(scene_dir / "band10_thermal.tif", qa_mask=qa_mask)
-        ndvi = compute_ndvi(
-            scene_dir / "band4_red.tif", scene_dir / "band5_nir.tif", qa_mask=qa_mask
-        )
+        scenes_by_tile[s["tile"]].append(s)
 
-        lst_temp = scene_dir / "lst_temp.tif"
-        ndvi_temp = scene_dir / "ndvi_temp.tif"
-        save_geotiff(lst, lst_temp, profile)
-        save_geotiff(ndvi, ndvi_temp, profile)
+    lst_temp_paths, ndvi_temp_paths = [], []
+    for tile_id, tile_scenes in sorted(scenes_by_tile.items()):
+        lst_arrays, ndvi_arrays, profile = [], [], None
+        for s in tile_scenes:
+            scene_dir = data_raw / s["folder"]
+            qa_mask = load_qa_mask(scene_dir / "band_qa_pixel.tif")
+            lst, profile = compute_lst(scene_dir / "band10_thermal.tif", qa_mask=qa_mask)
+            ndvi = compute_ndvi(
+                scene_dir / "band4_red.tif", scene_dir / "band5_nir.tif", qa_mask=qa_mask
+            )
+            lst_arrays.append(lst)
+            ndvi_arrays.append(ndvi)
+
+        if len(tile_scenes) > 1:
+            print(f"[{year}] karo {tile_id}: {len(tile_scenes)} sahnenin medyan kompoziti alınıyor")
+        lst_composite = composite_scene_arrays(lst_arrays)
+        ndvi_composite = composite_scene_arrays(ndvi_arrays)
+        del lst_arrays, ndvi_arrays
+        gc.collect()
+
+        lst_temp = data_raw / f"{tile_id}_lst_temp.tif"
+        ndvi_temp = data_raw / f"{tile_id}_ndvi_temp.tif"
+        save_geotiff(lst_composite, lst_temp, profile)
+        save_geotiff(ndvi_composite, ndvi_temp, profile)
+        del lst_composite, ndvi_composite
 
         # Bbox'ı geniş bir şehir, iki komşu UTM diliminde işlenmiş Landsat
-        # sahnelerini bir arada seçebilir (bkz. reproject_to_crs docstring'i).
-        # Böyle bir sahne mozaiklemeden önce config.crs'e getirilir; aksi
-        # halde stream_mosaic sahneyi (aynı sayısal koordinatlar farklı
+        # karolarını bir arada seçebilir (bkz. reproject_to_crs docstring'i).
+        # Böyle bir karo mozaiklemeden önce config.crs'e getirilir; aksi
+        # halde stream_mosaic karoyu (aynı sayısal koordinatlar farklı
         # anlama geldiği için) yanlış konuma yapıştırır.
-        scene_crs = str(profile["crs"])
-        if scene_crs != str(config.crs):
-            print(f"[{year}] {s['folder']}: {scene_crs} -> {config.crs} yeniden izdüşürülüyor")
-            lst_reproj, ndvi_reproj = scene_dir / "lst_temp_reproj.tif", scene_dir / "ndvi_temp_reproj.tif"
+        tile_crs = str(profile["crs"])
+        if tile_crs != str(config.crs):
+            print(f"[{year}] karo {tile_id}: {tile_crs} -> {config.crs} yeniden izdüşürülüyor")
+            lst_reproj = data_raw / f"{tile_id}_lst_temp_reproj.tif"
+            ndvi_reproj = data_raw / f"{tile_id}_ndvi_temp_reproj.tif"
             reproject_to_crs(lst_temp, lst_reproj, config.crs)
             reproject_to_crs(ndvi_temp, ndvi_reproj, config.crs)
             lst_temp, ndvi_temp = lst_reproj, ndvi_reproj
@@ -260,12 +321,13 @@ def build_lst_ndvi_mosaic(config: CityConfig, year: str, main_year: str) -> tupl
         lst_temp_paths.append(lst_temp)
         ndvi_temp_paths.append(ndvi_temp)
 
-        del lst, ndvi, profile
+        del profile
         gc.collect()
 
     out_profile = build_output_profile(lst_temp_paths)
     print(f"[{year}] mozaikleniyor: {out_profile['width']}x{out_profile['height']} piksel")
     stream_mosaic(lst_temp_paths, lst_path, out_profile)
     stream_mosaic(ndvi_temp_paths, ndvi_path, out_profile)
+    write_cache_meta(lst_path, MOSAIC_VERSION)
 
     return lst_path, ndvi_path

@@ -145,8 +145,9 @@ LST(°C) = LST(K) - 273.15
 ```
 
 Bulutlar kızılötesiyi bozduğu için her sahne aranırken bulut oranı %30'un
-altında tutulur ve her uydu karosu (path/row) için mevcut en temiz tarih
-seçilir.
+altında tutulur ve her uydu karosu (path/row) için mevcut en temiz
+`max_scenes_per_tile` (varsayılan 3, `config.yaml`'ın `landsat` bölümünden
+ayarlanır) kadar tarih seçilir.
 
 Sahne düzeyindeki düşük bulut oranı tek başına yeterli değil: toplam bulut
 oranı düşük bir sahnede bile bulutun küçük bir kısmı doğrudan çalışma
@@ -156,6 +157,16 @@ yeniden izdüşürmeden önce) piksel düzeyinde bir bulut maskesi uygulanır:
 fill, dilated cloud, cirrus, cloud, cloud shadow ve snow bayraklarından
 herhangi biri taşıyan pikseller `NaN`/nodata yapılır (`core/raster.py`,
 `qa_invalid_mask`).
+
+**Çoklu sahne kompoziti:** tek bir sahne seçmek yerine, her karo için
+seçilen `max_scenes_per_tile` kadar sahnenin LST/NDVI'si ayrı ayrı
+hesaplanıp (QA maskesi her biri kendi ızgarasında uygulanmış olarak) piksel
+bazlı **medyanı** alınır (`core/raster.py`, `composite_scene_arrays`).
+Medyan, ortalamadan daha dayanıklıdır - aykırı tek bir bulutlu/anormal
+günün sonucu domine etmesini engeller. Bu, aşağıdaki "Metodolojik uyarı"da
+bahsedilen tek-sahne kaynaklı gürültüyü azaltır (aynı yaklaşım, gece ısı
+adası katmanı için `core/night_lst.py`'de zaten kullanılıyordu).
+`max_scenes_per_tile: 1` ile eski tek-sahne davranışına dönülebilir.
 
 **UTM dilim sınırındaki şehirler:** USGS her Landsat sahnesini kendi
 merkezine en yakın UTM dilimine işler. Bir şehrin bbox'ı iki komşu path/row
@@ -358,11 +369,14 @@ sonuç.
   yıllar kolayca eklenebilir.
 
 **Metodolojik uyarı:** 2020 ve 2026 için seçilen yaz Landsat sahneleri
-arasında yol segmentleri boyunca ortalama +3.29°C LST farkı gözlenmiştir.
-Bu değer uzun dönem iklim trendi olarak yorumlanmamalıdır; sahne tarihi,
+arasında yol segmentleri boyunca ortalama +3.29°C LST farkı gözlenmiştir
+(tek-sahne-per-karo metodolojisiyle üretilen önceki bir sürümden). Bu
+değer uzun dönem iklim trendi olarak yorumlanmamalıdır; sahne tarihi,
 meteorolojik koşullar, toprak nemi ve dönemsel sıcaklık farkları sonucu
-etkileyebilir. Daha güvenilir trend analizi için çoklu yaz sahnelerinden
-yıllık kompozitlerin kullanılması planlanmaktadır.
+etkileyebilir. Artık her karo için birden fazla yaz sahnesinden piksel
+bazlı medyan kompozit alınıyor (bkz. yukarıdaki "Çoklu sahne kompoziti"),
+bu da tek-günlük anomalilerin etkisini azaltır; yukarıdaki rakam, bu
+metodolojiyle yeniden üretildiğinde güncellenecektir.
 
 ## Kurulum ve çalıştırma
 
@@ -441,6 +455,10 @@ docker run --rm \
   izmir-heat-risk --city izmir --years 2020 2026 --main-year 2026
 ```
 
+`.github/workflows/tests.yml` imajın gerçekten build olduğunu ve modülün
+sağlam kurulduğunu her push/PR'da otomatik doğrular (ağır/ağ gerektiren
+tam pipeline'ı çalıştırmadan, hafif bir duman testiyle).
+
 ## Barındırma (GitHub Pages)
 
 `pipeline.py`, her şehir için iki harita üretir (bkz. `core/map_builder.py`):
@@ -502,9 +520,10 @@ izmir-heat-risk/
 
 ## Bilinen sınırlamalar
 
-- **Bulut kapanması**: bazı yıllarda İzmir üzerinde %30 altı bulutlu bir
-  yaz sahnesi bulunamayabilir; bu durumda `MAX_CLOUD_COVER` gevşetilebilir
-  ama sonuç kalitesi düşer.
+- **Bulut kapanması**: bir karo için `max_scenes_per_tile` kadar aday
+  sahne birden fazla tarihten denenir (bkz. Metodoloji) ama bazı yıllarda
+  İzmir üzerinde %30 altı bulutlu HİÇBİR yaz sahnesi bulunamayabilir; bu
+  durumda `max_cloud_cover` gevşetilebilir ama sonuç kalitesi düşer.
 - **Yaş verisinin çözünürlüğü**: yaşlı nüfus oranı ilçe seviyesinde -
   mahalle-içi gerçek dağılım bundan daha değişken olabilir.
 - **Tek gündüz anlık görüntüsü**: yol bazlı LST, sahnenin çekildiği saatteki

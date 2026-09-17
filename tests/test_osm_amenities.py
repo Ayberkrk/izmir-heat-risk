@@ -8,6 +8,7 @@ from core.osm_amenities import (
     GREEN_LEISURE,
     HEALTH_AMENITIES,
     _other_tags_get,
+    load_building_centroids,
     load_green_space_polygons,
     load_health_points,
 )
@@ -102,3 +103,75 @@ def test_load_health_points_combines_point_and_polygon_layers(monkeypatch):
     assert set(health["amenity"]) == {"pharmacy", "hospital"}
     # Poligon merkez noktası, orijinal poligon geometrisi değil, bir Point olmalı.
     assert all(geom.geom_type == "Point" for geom in health.geometry)
+
+
+# --- Centroid CRS doğruluğu: önce config.crs'e geçilip merkez orada
+# hesaplanmalı, coğrafi (derece) CRS'te değil - aksi halde büyük/dışbükey
+# olmayan poligonlarda merkez sistematik olarak kayar. Aşağıdaki poligon
+# kasıtlı olarak çarpık/simetrik değil ve geniş bir enlem aralığına
+# yayılıyor ki iki hesaplama arasındaki fark ölçülebilir olsun. ---
+
+_SKEWED_POLYGON = Polygon([(27.0, 30.0), (27.3, 45.0), (30.0, 31.0)])
+
+
+def _expected_projected_centroid(polygon, crs) -> Point:
+    return gpd.GeoSeries([polygon], crs="EPSG:4326").to_crs(crs).centroid.to_crs("EPSG:4326").iloc[0]
+
+
+def _naive_geographic_centroid(polygon) -> Point:
+    return gpd.GeoSeries([polygon], crs="EPSG:4326").centroid.iloc[0]
+
+
+def test_skewed_polygon_fixture_actually_distinguishes_the_two_methods():
+    # Test verisinin kendisinin anlamlı olduğunu doğrula: yanlış (coğrafi
+    # CRS'te) ve doğru (projeksiyonlu) centroid gerçekten belirgin farklı
+    # olmalı, yoksa aşağıdaki testler bug'ı yakalamayan sahte-yeşil testler olur.
+    config = _make_config()
+    correct = _expected_projected_centroid(_SKEWED_POLYGON, config.crs)
+    naive = _naive_geographic_centroid(_SKEWED_POLYGON)
+    assert correct.distance(naive) > 0.01  # ~1 km'den fazla fark
+
+
+def test_load_health_points_polygon_centroid_uses_projected_crs(monkeypatch):
+    points = gpd.GeoDataFrame({"other_tags": [None], "geometry": [Point(0, 0)]}, crs="EPSG:4326")
+    polys = gpd.GeoDataFrame({"amenity": ["hospital"], "geometry": [_SKEWED_POLYGON]}, crs="EPSG:4326")
+
+    def fake_read_file(path, layer, bbox=None, columns=None):
+        return points if layer == "points" else polys
+
+    monkeypatch.setattr(osm_amenities.gpd, "read_file", fake_read_file)
+    config = _make_config()
+
+    health = load_health_points(config, "dummy.pbf")
+
+    result_point = health.loc[health["amenity"] == "hospital", "geometry"].iloc[0]
+    expected = _expected_projected_centroid(_SKEWED_POLYGON, config.crs)
+    naive = _naive_geographic_centroid(_SKEWED_POLYGON)
+    assert result_point.distance(expected) < 1e-6
+    assert result_point.distance(naive) > 0.01
+
+
+def test_load_building_centroids_keeps_only_tagged_buildings(monkeypatch):
+    polys = gpd.GeoDataFrame({
+        "building": ["yes", None],
+        "geometry": [_SKEWED_POLYGON, Polygon([(0, 0), (1, 0), (1, 1)])],
+    }, crs="EPSG:4326")
+    monkeypatch.setattr(osm_amenities.gpd, "read_file", lambda *a, **kw: polys)
+
+    buildings = load_building_centroids(_make_config(), "dummy.pbf")
+
+    assert len(buildings) == 1
+
+
+def test_load_building_centroids_uses_projected_crs(monkeypatch):
+    polys = gpd.GeoDataFrame({"building": ["yes"], "geometry": [_SKEWED_POLYGON]}, crs="EPSG:4326")
+    monkeypatch.setattr(osm_amenities.gpd, "read_file", lambda *a, **kw: polys)
+    config = _make_config()
+
+    buildings = load_building_centroids(config, "dummy.pbf")
+
+    result_point = buildings["geometry"].iloc[0]
+    expected = _expected_projected_centroid(_SKEWED_POLYGON, config.crs)
+    naive = _naive_geographic_centroid(_SKEWED_POLYGON)
+    assert result_point.distance(expected) < 1e-6
+    assert result_point.distance(naive) > 0.01

@@ -15,8 +15,15 @@ import pystac_client
 import rasterio
 import requests
 
+from core.cache import is_cache_valid, write_cache_meta
 from core.city_config import CityConfig
 from core.paths import year_paths
+
+# scene_metadata.json'un formül sürümü (bkz. core/cache.py). Daha önce bu
+# fonksiyon düz `.exists()` kontrolü kullanıyordu; versiyonlu önbelleğe
+# geçişin kendisi, sürüm dosyası taşımayan eski (karo başına tek sahne
+# varsayan) metadata'yı otomatik geçersiz sayar.
+SCENE_FETCH_VERSION = 1
 
 CATALOG_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 BANDS_TO_DOWNLOAD = {
@@ -48,6 +55,30 @@ def is_valid_geotiff(path: Path) -> bool:
         return False
 
 
+def select_best_scenes_per_tile(items, max_per_tile: int = 1) -> dict[tuple[int, int], list]:
+    """Sahneleri karoya (path/row) göre gruplayıp her karo için en az bulutlu
+    `max_per_tile` kadarını döner (bulut oranına göre artan sırada).
+
+    Saf/network gerektirmeyen bir fonksiyon - `items`'ın gerçek bir
+    `pystac.Item` olması gerekmez, sadece `.id` ve
+    `.properties["landsat:wrs_path"]`/`["landsat:wrs_row"]`/
+    `["eo:cloud_cover"]` erişimini destekleyen herhangi bir obje olabilir
+    (testlerde basit bir sahte obje kullanılır).
+
+    `max_per_tile=1` (varsayılan), önceki tek-sahne-per-karo davranışıyla
+    birebir aynıdır - çoklu sahne kompoziti için `max_per_tile` artırılır.
+    """
+    items_by_tile: dict[tuple[int, int], list] = defaultdict(list)
+    for item in items:
+        tile_id = (item.properties["landsat:wrs_path"], item.properties["landsat:wrs_row"])
+        items_by_tile[tile_id].append(item)
+
+    return {
+        tile_id: sorted(tile_items, key=lambda it: it.properties.get("eo:cloud_cover", 999))[:max_per_tile]
+        for tile_id, tile_items in items_by_tile.items()
+    }
+
+
 def download_band(item, asset_name: str, save_path: Path) -> None:
     url = item.assets[asset_name].href
     response = requests.get(url, stream=True, timeout=DOWNLOAD_TIMEOUT_SECONDS)
@@ -57,18 +88,19 @@ def download_band(item, asset_name: str, save_path: Path) -> None:
             f.write(chunk)
 
 
-def fetch_landsat_scenes(config: CityConfig, year: str, main_year: str) -> Path:
+def fetch_landsat_scenes(config: CityConfig, year: str, main_year: str, force: bool = False) -> Path:
     """Verilen yılın yaz aylarına ait en temiz Landsat sahnelerini indirir.
 
     Çalışma alanı birden fazla uydu karosuna (path/row) düştüğü için her
-    karo için ayrı ayrı en az bulutlu sahne seçilir; sonuç mozaiklenecek
-    karo sayısı kadar parçadır.
+    karo için ayrı ayrı en az bulutlu `config.max_scenes_per_tile` sahne
+    seçilir (bkz. select_best_scenes_per_tile); sonuç mozaiklenecek karo
+    sayısı × sahne sayısı kadar parçadır.
     """
     data_raw, _ = year_paths(config.city_id, year, main_year)
     data_raw.mkdir(parents=True, exist_ok=True)
     metadata_path = data_raw / "scene_metadata.json"
 
-    if metadata_path.exists():
+    if is_cache_valid(metadata_path, SCENE_FETCH_VERSION, force=force):
         print(f"[{year}] scene_metadata.json zaten var, indirme atlanıyor")
         return metadata_path
 
@@ -87,15 +119,7 @@ def fetch_landsat_scenes(config: CityConfig, year: str, main_year: str) -> Path:
     items = list(search.items())
     print(f"[{year}] {len(items)} aday sahne bulundu")
 
-    items_by_tile = defaultdict(list)
-    for item in items:
-        tile_id = (item.properties["landsat:wrs_path"], item.properties["landsat:wrs_row"])
-        items_by_tile[tile_id].append(item)
-
-    best_items = {
-        tile_id: min(tile_items, key=lambda it: it.properties.get("eo:cloud_cover", 999))
-        for tile_id, tile_items in items_by_tile.items()
-    }
+    best_items = select_best_scenes_per_tile(items, max_per_tile=config.max_scenes_per_tile)
 
     if not best_items:
         raise RuntimeError(
@@ -105,31 +129,33 @@ def fetch_landsat_scenes(config: CityConfig, year: str, main_year: str) -> Path:
         )
 
     scenes_meta = []
-    for tile_id, item in sorted(best_items.items()):
-        scene_dir = data_raw / item.id
-        scene_dir.mkdir(parents=True, exist_ok=True)
+    for tile_id, tile_items in sorted(best_items.items()):
+        for item in tile_items:
+            scene_dir = data_raw / item.id
+            scene_dir.mkdir(parents=True, exist_ok=True)
 
-        for asset_name, filename in BANDS_TO_DOWNLOAD.items():
-            save_path = scene_dir / filename
-            if is_valid_geotiff(save_path):
-                continue
-            if save_path.exists():
-                save_path.unlink()
-            print(f"[{year}] indiriliyor: {item.id}/{filename}")
-            download_band(item, asset_name, save_path)
+            for asset_name, filename in BANDS_TO_DOWNLOAD.items():
+                save_path = scene_dir / filename
+                if is_valid_geotiff(save_path):
+                    continue
+                if save_path.exists():
+                    save_path.unlink()
+                print(f"[{year}] indiriliyor: {item.id}/{filename}")
+                download_band(item, asset_name, save_path)
 
-        scenes_meta.append({
-            "tile": f"{tile_id[0]}_{tile_id[1]}",
-            "scene_id": item.id,
-            "date": item.properties["datetime"][:10],
-            "cloud_cover": item.properties["eo:cloud_cover"],
-            "folder": item.id,
-        })
+            scenes_meta.append({
+                "tile": f"{tile_id[0]}_{tile_id[1]}",
+                "scene_id": item.id,
+                "date": item.properties["datetime"][:10],
+                "cloud_cover": item.properties["eo:cloud_cover"],
+                "folder": item.id,
+            })
 
     metadata = {"bbox": config.bbox, "bands": list(BANDS_TO_DOWNLOAD.values()),
                 "catalog": CATALOG_URL, "scenes": scenes_meta}
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
+    write_cache_meta(metadata_path, SCENE_FETCH_VERSION)
 
     print(f"[{year}] {len(scenes_meta)} sahne indirildi")
     return metadata_path

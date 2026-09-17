@@ -1,18 +1,23 @@
 import json
 
+import folium
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import LineString, Polygon
 
 from core.city_config import CityConfig
 from core.map_builder import (
+    _base_map,
     _build_explanation_column,
     _load_night_lst,
+    _night_layer_js,
     _prepare_layers,
     _prepare_night_data,
     _round_coords,
     _slugify,
     _write_city_stats,
+    _write_embedded,
+    _write_fetch_based,
     build_hvi_map,
     swatch,
 )
@@ -251,3 +256,144 @@ def test_build_hvi_map_writes_offline_and_hosted_outputs_with_split_geojson(tmp_
 
     stats = json.loads((docs_dir / "testcity" / "stats.json").read_text())
     assert stats["road_count"] == 2
+
+
+# --- _base_map: katman/lejant/kontrol paneli kurulumu (dolaylı değil, doğrudan) ---
+
+def _make_night_gdf() -> gpd.GeoDataFrame:
+    return gpd.GeoDataFrame({
+        "mahalle_adi": ["M1", "M2"],
+        "gece_lst_c": [18.0, 26.0],
+        "_gece_bin": ["Serin", "Çok sıcak"],
+        "_gece_lst_str": ["18.0°C", "26.0°C"],
+        "geometry": [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+                     Polygon([(2, 0), (2, 1), (3, 1), (3, 0)])],
+    }, crs="EPSG:4326")
+
+
+def _prepared_roads(years: list[str]) -> gpd.GeoDataFrame:
+    # _base_map, _prepare_layers'ın ürettiği _mahalle_str/_hvi_str_{year}/
+    # _aciklama_str_{year} sütunlarının roads üzerinde ZATEN var olduğunu
+    # varsayıyor (placeholder GeoJson bunlardan kuruluyor) - build_hvi_map
+    # içinde bu sıra hep korunuyor, testte de aynı sıra izlenmeli.
+    roads = _make_roads()
+    _prepare_layers(roads, years)
+    return roads
+
+
+def test_base_map_returns_a_folium_map():
+    roads = _prepared_roads(["2020", "2026"])
+    m, *_ = _base_map(_make_config(), roads, ["2020", "2026"], "2026", None)
+    assert isinstance(m, folium.Map)
+
+
+def test_base_map_only_creates_layers_for_categories_present_in_data():
+    # Sentetik veri sadece Düşük/Kritik kullanıyor - Orta/Yüksek/Aşırı
+    # Kritik için hiç FeatureGroup eklenmemeli (satır 194-196'daki
+    # `if len(default_subset) == 0: continue`).
+    roads = _prepared_roads(["2020", "2026"])
+    _, geojson_vars, group_vars, _, _ = _base_map(_make_config(), roads, ["2020", "2026"], "2026", None)
+
+    assert set(geojson_vars.keys()) == {"Düşük", "Kritik"}
+    assert set(group_vars.keys()) == {"Düşük", "Kritik"}
+
+
+def test_base_map_category_label_includes_min_max_range():
+    roads = _prepared_roads(["2020", "2026"])
+    m, *_ = _base_map(_make_config(), roads, ["2020", "2026"], "2026", None)
+
+    # category_labels doğrudan dönmüyor ama legend HTML'ine gömülüyor -
+    # 2026 için Düşük tek yol (%15) taşıyor, aralık "15.0-15.0" olmalı.
+    html = m.get_root().render()
+    assert "Düşük (15.0-15.0)" in html
+
+
+def test_base_map_without_night_gdf_returns_empty_night_vars():
+    roads = _prepared_roads(["2020", "2026"])
+    _, _, _, night_geojson_vars, night_group_vars = _base_map(
+        _make_config(), roads, ["2020", "2026"], "2026", None
+    )
+    assert night_geojson_vars == {}
+    assert night_group_vars == {}
+
+
+def test_base_map_with_night_gdf_creates_layer_per_present_bin():
+    roads = _prepared_roads(["2020", "2026"])
+    night_gdf = _make_night_gdf()
+    m, _, _, night_geojson_vars, night_group_vars = _base_map(
+        _make_config(), roads, ["2020", "2026"], "2026", night_gdf
+    )
+    assert set(night_geojson_vars.keys()) == {"Serin", "Çok sıcak"}
+    assert set(night_group_vars.keys()) == {"Serin", "Çok sıcak"}
+    # Gece kategorileri HVI kategorileriyle aynı düz listede karışmasın diye
+    # ayrı bir başlık scripti ekleniyor (bkz. _base_map docstring/yorumları).
+    assert "Gece Isı Haritası" in m.get_root().render()
+
+
+# --- _night_layer_js: gece katmanları için JS üreticisi ---
+
+def test_night_layer_js_returns_empty_string_when_no_night_layers():
+    assert _night_layer_js({}, {}, "{}") == ""
+
+
+def test_night_layer_js_includes_expected_variable_names_and_labels():
+    night_geojson_vars = {"Serin": "geo_json_1"}
+    night_group_vars = {"Serin": "feature_group_1"}
+    js = _night_layer_js(night_geojson_vars, night_group_vars, json.dumps({"Serin": {}}))
+
+    assert "geceGeoJsonAdlari" in js
+    assert "geceGrupAdlari" in js
+    assert "geo_json_1" in js
+    assert "feature_group_1" in js
+
+
+# --- _write_embedded / _write_fetch_based: her fonksiyonun kendi sözleşmesi ---
+
+def test_write_embedded_saves_html_with_embedded_year_and_category_data(tmp_path, monkeypatch):
+    output_dir = tmp_path / "output"
+    monkeypatch.setattr("core.map_builder.OUTPUT_DIR", output_dir)
+
+    roads = _make_roads()
+    config = _make_config()
+    data_by_year = _prepare_layers(roads, ["2020", "2026"])
+    m, geojson_vars, group_vars, night_geojson_vars, night_group_vars = _base_map(
+        config, roads, ["2020", "2026"], "2026", None
+    )
+
+    out_path = _write_embedded(config, m, geojson_vars, group_vars, data_by_year, "2026",
+                                night_geojson_vars, night_group_vars, {})
+
+    assert out_path == output_dir / "testcity_hvi_map.html"
+    html = out_path.read_text()
+    # Tüm yıl/kategori verisi tek dosyaya gömülü olmalı (çevrimdışı sürüm) -
+    # fetch YOK, "A Caddesi" adı doğrudan HTML içinde geçmeli.
+    assert "tumVeriYilBazli" in html
+    assert "A Caddesi" in html
+    assert "mevcutYil = '2026'" in html
+
+
+def test_write_fetch_based_splits_data_into_separate_geojson_files(tmp_path, monkeypatch):
+    docs_dir = tmp_path / "docs"
+    monkeypatch.setattr("core.map_builder.DOCS_DIR", docs_dir)
+
+    roads = _make_roads()
+    config = _make_config()
+    data_by_year = _prepare_layers(roads, ["2020", "2026"])
+    m, geojson_vars, group_vars, night_geojson_vars, night_group_vars = _base_map(
+        config, roads, ["2020", "2026"], "2026", None
+    )
+
+    out_path = _write_fetch_based(config, m, geojson_vars, group_vars, data_by_year, ["2020", "2026"],
+                                   "2026", night_geojson_vars, night_group_vars, {})
+
+    assert out_path == docs_dir / "testcity" / "index.html"
+    html = out_path.read_text()
+    # Barındırma sürümünde tüm yıl/kategori verisi tek dosyaya gömülü
+    # OLMAMALI (bkz. _write_embedded testindeki "tumVeriYilBazli" - o
+    # sadece çevrimdışı sürümde var); burada sadece dosya yolları ve fetch
+    # mantığı olmalı. (Her kategori için tek bir "placeholder" satır zaten
+    # gizli bir katmana gömülüdür - bu, _base_map'in GeoJsonTooltip'i boş
+    # veriyle başlatmaması için kasıtlıdır, veri sızıntısı değildir.)
+    assert "dosyaYollari" in html
+    assert "tumVeriYilBazli" not in html
+    assert (docs_dir / "testcity" / "data" / "dusuk_2020.geojson").exists()

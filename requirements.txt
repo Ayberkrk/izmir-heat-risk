@@ -22,6 +22,11 @@ numpy>=1.26,<3.0
 geopandas>=0.14,<2.0
 shapely>=2.0,<3.0
 
+# CRS/EPSG doğrulama (city_config.py, validate_config_dict) - geopandas/
+# rasterio üzerinden zaten transitive bağımlılık, doğrudan import edildiği
+# için burada da açıkça listeleniyor.
+pyproj>=3.5,<4.0
+
 # Raster üzerinde istatistik hesaplama (spatial join)
 rasterstats>=0.19,<1.0
 

@@ -49,7 +49,14 @@ def load_health_points(config: CityConfig, pbf_path) -> gpd.GeoDataFrame:
 
     polys = gpd.read_file(pbf_path, layer="multipolygons", bbox=bbox, columns=["amenity", "geometry"])
     health_polys = polys[polys["amenity"].isin(HEALTH_AMENITIES)][["geometry", "amenity"]].copy()
-    health_polys["geometry"] = health_polys.geometry.centroid
+    # Centroid coğrafi CRS'te (derece) değil, önce projeksiyonlu config.crs'e
+    # geçilip orada hesaplanmalı - aksi halde büyük/dışbükey olmayan
+    # poligonlarda merkez sistematik olarak kayar (bkz. hvi.py'deki yol
+    # centroid'i, aynı desen). Sonda tekrar orijinal (coğrafi) CRS'e
+    # dönülüyor - _nearest_distance_m()'in beklediği targets_wgs84
+    # sözleşmesi bozulmasın diye.
+    original_crs = health_polys.crs
+    health_polys["geometry"] = health_polys.to_crs(config.crs).geometry.centroid.to_crs(original_crs)
 
     combined = pd.concat([health_points, health_polys], ignore_index=True)
     return gpd.GeoDataFrame(combined, geometry="geometry", crs=points.crs)
@@ -82,5 +89,8 @@ def load_building_centroids(config: CityConfig, pbf_path) -> gpd.GeoDataFrame:
         pbf_path, layer="multipolygons", bbox=(west, south, east, north), columns=["building", "geometry"]
     )
     buildings = polys[polys["building"].notna()][["geometry"]].copy()
-    buildings["geometry"] = buildings.geometry.centroid
+    # bkz. load_health_points'teki aynı düzeltme - centroid coğrafi CRS'te
+    # değil, önce config.crs'e geçilip orada hesaplanmalı.
+    original_crs = buildings.crs
+    buildings["geometry"] = buildings.to_crs(config.crs).geometry.centroid.to_crs(original_crs)
     return buildings

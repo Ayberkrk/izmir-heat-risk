@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import pyproj
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -45,6 +46,11 @@ class CityConfig:
     admin_level_mahalle: str
     population_adapter_path: str
     buffer_meters: int = 10
+    # Karo (path/row) başına en fazla kaç Landsat sahnesinin indirilip
+    # medyanla kompozitleneceği (bkz. core/raster.py, composite_scene_arrays)
+    # - tek sahneye kıyasla tek-günlük anomalilerin (bulut, toprak nemi)
+    # etkisini azaltır. 1, eski tek-sahne davranışıyla birebir aynıdır.
+    max_scenes_per_tile: int = 3
     raw: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -73,6 +79,13 @@ def validate_config_dict(cfg: dict) -> list[str]:
             west, south, east, north = bbox
             if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
                 errors.append(f"'city.bbox' geçersiz koordinat aralığı: {bbox}")
+
+    crs = city.get("crs")
+    if crs is not None:
+        try:
+            pyproj.CRS(crs)
+        except pyproj.exceptions.CRSError:
+            errors.append(f"'city.crs' geçerli bir EPSG/CRS tanımı değil: '{crs}'")
 
     osm = cfg.get("osm", {})
     for key in REQUIRED_OSM_KEYS:
@@ -111,6 +124,7 @@ def load_city_config(city_id: str) -> CityConfig:
         bbox=city["bbox"],
         crs=city["crs"],
         max_cloud_cover=landsat.get("max_cloud_cover", 30),
+        max_scenes_per_tile=landsat.get("max_scenes_per_tile", 3),
         osm_pbf_url=osm["pbf_url"],
         drive_highway_types=osm["highway_types"],
         admin_level_ilce=str(osm["admin_level_ilce"]),

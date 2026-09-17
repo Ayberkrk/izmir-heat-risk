@@ -43,6 +43,15 @@ DOWNLOAD_TIMEOUT_SECONDS = 120
 OUT_PIXEL_DEGREES = 0.01  # ~1 km - MODIS'in kendi çözünürlüğüyle uyumlu
 
 
+def _raw_to_celsius(raw: np.ndarray) -> np.ndarray:
+    """Ham MODIS LST_Night_1km piksel değerini Celsius'a çevirir.
+
+    Ham değer 0 = geçersiz/veri yok (bkz. ürün belgesi) - gerçek bir
+    sıcaklık ölçümüyle karışmaması için NaN'e çevrilir.
+    """
+    return np.where(raw == 0, np.nan, raw * KELVIN_SCALE - 273.15).astype(np.float32)
+
+
 def fetch_night_lst(config: CityConfig, year: str) -> Path:
     """Yazın tüm 8-günlük MODIS gece LST kompozitlerinin ortalamasını,
     şehrin bbox'ına kırpılmış tek bir GeoTIFF (°C, EPSG:4326) olarak yazar.
@@ -82,9 +91,7 @@ def fetch_night_lst(config: CityConfig, year: str) -> Path:
             raw = src.read(1)
             src_crs, src_transform = src.crs, src.transform
 
-        # Ham değer 0 = geçersiz/veri yok (bkz. ürün belgesi) - gerçek bir
-        # sıcaklık ölçümüyle karışmaması için NaN'e çevrilir.
-        celsius = np.where(raw == 0, np.nan, raw * KELVIN_SCALE - 273.15).astype(np.float32)
+        celsius = _raw_to_celsius(raw)
 
         reprojected = np.full((dst_height, dst_width), np.nan, dtype=np.float32)
         reproject(

@@ -26,3 +26,17 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m pytest tests/ -v
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker imajını build et
+        run: docker build -t izmir-heat-risk .
+
+      # Gerçek pipeline'ı (Landsat/OSM indirmesi, dakikalarca sürer) CI'da
+      # çalıştırmıyoruz - sadece imajın modülü sağlam kurduğunu, network
+      # gerektirmeden doğrulayan hafif bir duman testi.
+      - name: İçe aktarma duman testi
+        run: docker run --rm --entrypoint python izmir-heat-risk -c "import pipeline"

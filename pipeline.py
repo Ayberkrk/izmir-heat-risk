@@ -56,8 +56,8 @@ def run(city_id: str, years: list[str], main_year: str, open_browser: bool,
     print(f"Şehir: {config.name} ({city_id}) | bbox={config.bbox} | yıllar={years}")
 
     for year in years:
-        fetch_landsat_scenes(config, year, main_year)
-        build_lst_ndvi_mosaic(config, year, main_year)
+        fetch_landsat_scenes(config, year, main_year, force=force)
+        build_lst_ndvi_mosaic(config, year, main_year, force=force)
 
     roads = compute_road_risk_timeseries(config, years, main_year, force=force)
     compute_heat_vulnerability_index(config, years, roads, force=force)
@@ -86,7 +86,7 @@ def main() -> None:
     parser.add_argument("--main-year", default="2026", help="Düz klasör yapısını kullanacak referans yıl")
     parser.add_argument("--open", action="store_true", help="Harita üretildikten sonra tarayıcıda aç")
     parser.add_argument("--force", action="store_true",
-                         help="Yol risk skoru ve HVI önbelleğini yok say, yeniden hesapla")
+                         help="Sahne/mozaik/yol risk skoru/HVI önbelleğini yok say, yeniden hesapla")
     parser.add_argument("--night-lst", action="store_true",
                          help="Mahalle ölçeğinde MODIS gece ısı adası katmanını da üret (isteğe bağlı, ek indirme)")
     args = parser.parse_args()
