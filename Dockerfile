@@ -7,10 +7,17 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # rasterio/geopandas'ın PyPI tekerlekleri (wheel) GDAL/GEOS/PROJ'u zaten
-# içeriyor - ayrı bir apt kurulumu gerekmez. build-essential yalnızca bir
-# bağımlılığın kaynak koddan derlenmesi gerektiği nadir durum için.
+# içeriyor - onlar için ayrı bir apt kurulumu gerekmez. Ama `python:3.12-
+# slim` GDAL'ın kendisinin dinamik olarak bağlandığı bazı temel sistem
+# kütüphanelerini (libexpat, libgomp) içermiyor - CI'daki `docker` job'ı
+# (.github/workflows/tests.yml) bunu "ImportError: libexpat.so.1: cannot
+# open shared object file" ile yakaladı (bkz. Actions run 35231356788).
+# build-essential yalnızca bir bağımlılığın kaynak koddan derlenmesi
+# gerektiği nadir durum için.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libexpat1 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt constraints.txt .
