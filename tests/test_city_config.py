@@ -35,6 +35,8 @@ def test_missing_city_key_is_reported():
     [27.5, 38.0, 27.0, 38.5],     # batı > doğu
     [27.0, 38.5, 27.5, 38.0],     # güney > kuzey
     [200.0, 38.0, 27.5, 38.5],    # geçersiz enlem/boylam
+    ["batı", 38.0, 27.5, 38.5],    # sayısal olmayan koordinat
+    [True, 38.0, 27.5, 38.5],      # bool sayısal koordinat kabul edilmemeli
 ])
 def test_invalid_bbox_is_rejected(bad_bbox):
     cfg = {**VALID_CONFIG, "city": {**VALID_CONFIG["city"], "bbox": bad_bbox}}
@@ -59,3 +61,17 @@ def test_invalid_crs_is_rejected(bad_crs):
 def test_valid_epsg_crs_is_accepted(good_crs):
     cfg = {**VALID_CONFIG, "city": {**VALID_CONFIG["city"], "crs": good_crs}}
     assert validate_config_dict(cfg) == []
+
+
+@pytest.mark.parametrize("bad_config", [None, [], "city: izmir"])
+def test_non_mapping_root_is_reported(bad_config):
+    errors = validate_config_dict(bad_config)
+    assert errors == ["Yapılandırmanın üst seviyesi bir sözlük olmalı"]
+
+
+@pytest.mark.parametrize("section", ["city", "osm", "population"])
+@pytest.mark.parametrize("bad_value", [[], "geçersiz"])
+def test_non_mapping_required_section_is_reported(section, bad_value):
+    cfg = {**VALID_CONFIG, section: bad_value}
+    errors = validate_config_dict(cfg)
+    assert any(f"'{section}' bölümü bir sözlük olmalı" == error for error in errors)
