@@ -58,8 +58,11 @@ class CityConfig:
         return CITIES_DIR / self.city_id
 
 
-def validate_config_dict(cfg: dict) -> list[str]:
+def validate_config_dict(cfg: Any) -> list[str]:
     """config sözlüğünü doğrular, hata mesajlarının listesini döndürür (boşsa geçerli)."""
+    if not isinstance(cfg, dict):
+        return ["Yapılandırmanın üst seviyesi bir sözlük olmalı"]
+
     errors: list[str] = []
     for key in REQUIRED_TOP_KEYS:
         if key not in cfg:
@@ -68,34 +71,46 @@ def validate_config_dict(cfg: dict) -> list[str]:
         return errors
 
     city = cfg["city"]
-    for key in REQUIRED_CITY_KEYS:
-        if key not in city:
-            errors.append(f"'city' altında eksik alan: '{key}'")
-    bbox = city.get("bbox")
-    if bbox is not None:
-        if not (isinstance(bbox, list) and len(bbox) == 4):
-            errors.append("'city.bbox' [batı, güney, doğu, kuzey] biçiminde 4 elemanlı olmalı")
-        else:
-            west, south, east, north = bbox
-            if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
-                errors.append(f"'city.bbox' geçersiz koordinat aralığı: {bbox}")
+    if not isinstance(city, dict):
+        errors.append("'city' bölümü bir sözlük olmalı")
+    else:
+        for key in REQUIRED_CITY_KEYS:
+            if key not in city:
+                errors.append(f"'city' altında eksik alan: '{key}'")
 
-    crs = city.get("crs")
-    if crs is not None:
-        try:
-            pyproj.CRS(crs)
-        except pyproj.exceptions.CRSError:
-            errors.append(f"'city.crs' geçerli bir EPSG/CRS tanımı değil: '{crs}'")
+        bbox = city.get("bbox")
+        if bbox is not None:
+            if not (isinstance(bbox, list) and len(bbox) == 4):
+                errors.append("'city.bbox' [batı, güney, doğu, kuzey] biçiminde 4 elemanlı olmalı")
+            elif any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in bbox):
+                errors.append("'city.bbox' koordinatları sayısal olmalı")
+            else:
+                west, south, east, north = bbox
+                if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
+                    errors.append(f"'city.bbox' geçersiz koordinat aralığı: {bbox}")
 
-    osm = cfg.get("osm", {})
-    for key in REQUIRED_OSM_KEYS:
-        if key not in osm:
-            errors.append(f"'osm' altında eksik alan: '{key}'")
+        crs = city.get("crs")
+        if crs is not None:
+            try:
+                pyproj.CRS(crs)
+            except (pyproj.exceptions.CRSError, TypeError, ValueError):
+                errors.append(f"'city.crs' geçerli bir EPSG/CRS tanımı değil: '{crs}'")
 
-    population = cfg.get("population", {})
-    for key in REQUIRED_POPULATION_KEYS:
-        if key not in population:
-            errors.append(f"'population' altında eksik alan: '{key}'")
+    osm = cfg["osm"]
+    if not isinstance(osm, dict):
+        errors.append("'osm' bölümü bir sözlük olmalı")
+    else:
+        for key in REQUIRED_OSM_KEYS:
+            if key not in osm:
+                errors.append(f"'osm' altında eksik alan: '{key}'")
+
+    population = cfg["population"]
+    if not isinstance(population, dict):
+        errors.append("'population' bölümü bir sözlük olmalı")
+    else:
+        for key in REQUIRED_POPULATION_KEYS:
+            if key not in population:
+                errors.append(f"'population' altında eksik alan: '{key}'")
 
     return errors
 
