@@ -1,6 +1,6 @@
 # Kentsel Isı Adası ve Isı Hassasiyet Endeksi (HVI)
 
-[![Testler](https://github.com/Ayberkrk/izmir-heat-risk/actions/workflows/tests.yml/badge.svg)](https://github.com/Ayberkrk/izmir-heat-risk/actions/workflows/tests.yml)
+[![Testler](https://github.com/Ayberkrk/turkiye-heat-risk/actions/workflows/tests.yml/badge.svg)](https://github.com/Ayberkrk/turkiye-heat-risk/actions/workflows/tests.yml)
 
 ## English summary
 
@@ -382,7 +382,7 @@ metodolojiyle yeniden üretildiğinde güncellenecektir.
 
 ```bash
 git clone <bu-repo>
-cd izmir-heat-risk
+cd turkiye-heat-risk
 python3 -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -447,12 +447,12 @@ merge edilmeden önce görünür.
 dışında kalıcı olsun diye host'a mount edilir:
 
 ```bash
-docker build -t izmir-heat-risk .
+docker build -t turkiye-heat-risk .
 docker run --rm \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/output:/app/output" \
   -v "$(pwd)/docs:/app/docs" \
-  izmir-heat-risk --city izmir --years 2020 2026 --main-year 2026
+  turkiye-heat-risk --city izmir --years 2020 2026 --main-year 2026
 ```
 
 `.github/workflows/tests.yml` imajın gerçekten build olduğunu ve modülün
@@ -475,7 +475,7 @@ katmanı indirir - ilk sayfa yükü birkaç yüz KB). İkincisini yayınlamak i�
 ## Proje yapısı
 
 ```
-izmir-heat-risk/
+turkiye-heat-risk/
 ├── pipeline.py               # Tek üst seviye giriş noktası: python pipeline.py --city izmir
 ├── validate_city.py           # Yeni bir şehir config.yaml'ını hızlıca doğrular
 ├── build_docs_index.py        # docs/ altındaki şehirler için karşılaştırma sayfası üretir
