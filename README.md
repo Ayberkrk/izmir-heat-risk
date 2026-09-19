@@ -12,9 +12,9 @@ geometric-mean HVI (temperature, tree canopy, population density,
 elderly/child population share, distance to hospital/pharmacy, distance to
 green space, built-up density), and pixel-level Jenks natural-breaks
 categorization shared across years. The architecture is city-agnostic -
-`src/core/` never changes when a new city is added; Izmir and Eskişehir are
-the two supported examples today (see [CONTRIBUTING.md](CONTRIBUTING.md) to
-add another).
+`src/core/` never changes when a new city is added; Izmir, Eskişehir and
+Şanlıurfa are the three supported examples today (see
+[CONTRIBUTING.md](CONTRIBUTING.md) to add another).
 
 Quick start (produces a single-file interactive HTML map):
 
@@ -33,9 +33,9 @@ repository.
 Açık verilerle çalışan, tekrar üretilebilir bir kentsel ısı riski analiz hattı.
 Landsat yüzey sıcaklığı, OpenStreetMap yol ağı ve demografik verileri
 birleştirerek ısı riskini sokak ölçeğinde haritalar. Şehirden bağımsız bir
-mimariye sahiptir; İzmir ve Eskişehir şu an desteklenen iki örnek, yeni bir
-şehir eklemek `src/core/` içindeki hiçbir dosyayı değiştirmeden mümkündür
-(bkz. [CONTRIBUTING.md](CONTRIBUTING.md)).
+mimariye sahiptir; İzmir, Eskişehir ve Şanlıurfa şu an desteklenen üç örnek,
+yeni bir şehir eklemek `src/core/` içindeki hiçbir dosyayı değiştirmeden
+mümkündür (bkz. [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 **Canlı harita:** GitHub Pages'te barındırılan, veri talep üzerine yüklenen
 küçük sürüm için `docs/index.html` (Pages etkinleştirildiğinde bir URL'e
@@ -496,11 +496,16 @@ turkiye-heat-risk/
 │       │   ├── config.yaml         #   İzmir'e özel bbox, URL'ler, sütun eşlemeleri
 │       │   ├── adapter.py          #   İzmir'e özel nüfus/demografi mantığı (CKAN)
 │       │   └── sege_2022_ilce.csv  #   İlçe bazlı sosyoekonomik gelişmişlik skoru (resmi SEGE-2022)
-│       └── eskisehir/
-│           ├── config.yaml         #   Eskişehir'e özel bbox, URL'ler
-│           ├── adapter.py          #   TÜİK tabanlı nüfus/demografi mantığı (CKAN'sız şablon)
-│           ├── ilce_nufus.csv      #   İlçe nüfusu + yaşlı/çocuk oranı (TÜİK ADNKS 2025)
-│           └── sege_2022_ilce.csv  #   İlçe bazlı sosyoekonomik gelişmişlik skoru (resmi SEGE-2022)
+│       ├── eskisehir/
+│       │   ├── config.yaml         #   Eskişehir'e özel bbox, URL'ler
+│       │   ├── adapter.py          #   TÜİK tabanlı nüfus/demografi mantığı (CKAN'sız şablon)
+│       │   ├── ilce_nufus.csv      #   İlçe nüfusu + yaşlı/çocuk oranı (TÜİK ADNKS 2025)
+│       │   └── sege_2022_ilce.csv  #   İlçe bazlı sosyoekonomik gelişmişlik skoru (resmi SEGE-2022)
+│       └── sanliurfa/              #   Eskişehir ile aynı TÜİK tabanlı şablon (bkz. adapter.py)
+│           ├── config.yaml
+│           ├── adapter.py
+│           ├── ilce_nufus.csv
+│           └── sege_2022_ilce.csv
 ├── tests/                     # Saf/mantık fonksiyonları için birim testler (ağ gerektirmez)
 ├── docs/                      # GitHub Pages'in servis ettiği, küçük/fetch tabanlı harita sürümü
 │   ├── index.html             #   şehirler arası karşılaştırma sayfası (build_docs_index.py üretir)

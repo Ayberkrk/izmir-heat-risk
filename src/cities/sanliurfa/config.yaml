@@ -1,0 +1,49 @@
+# Şanlıurfa'ya özel parametreler.
+#
+# İzmir/Eskişehir'in aksine burada belediyenin bir CKAN açık veri portalı
+# yok (acikveri.sanliurfa.bel.tr gibi bir adres bulunamadı) - bu yüzden
+# Eskişehir'in TÜİK-statik-CSV şablonu kullanıldı (bkz. adapter.py).
+
+city:
+  name: "Şanlıurfa"
+  # Kentsel çekirdek: Haliliye + Eyyübiye + Karaköprü (büyükşehrin üç
+  # merkez ilçesi). Bu üç ilçenin idari sınırları geniş bir kırsal/tarımsal
+  # hinterlandı da kapsıyor (Harran ovası yönünde onlarca km) - bbox bu
+  # yüzden tüm idari sınır değil, OSM'deki küçük/yoğun (<3 km²) mahalle
+  # merkez noktalarının kümelendiği gerçek kentsel alan baz alınarak
+  # belirlendi (bkz. CONTRIBUTING.md'deki admin_level doğrulama adımı).
+  bbox: [38.72, 37.07, 38.98, 37.26]  # [batı, güney, doğu, kuzey]
+  crs: "EPSG:32637"  # UTM 37N - Şanlıurfa 36°E'nin doğusunda (İzmir/Eskişehir'in 35N/36N'inden farklı)
+  attribution: "Nüfus: TÜİK ADNKS 2025, SEGE-2022 (T.C. Sanayi ve Teknoloji Bakanlığı)."
+
+landsat:
+  max_cloud_cover: 30
+  max_scenes_per_tile: 3
+
+osm:
+  # download.openstreetmap.fr, Türkiye'yi bölgelere ayırıyor - Şanlıurfa
+  # Güneydoğu Anadolu bölgesinde (İzmir/Eskişehir'in aegean/central_anatolia
+  # karşılığı).
+  pbf_url: "https://download.openstreetmap.fr/extracts/europe/turkey/southeastern_anatolia-latest.osm.pbf"
+  admin_level_ilce: 6
+  admin_level_mahalle: 8
+  highway_types:
+    - motorway
+    - trunk
+    - primary
+    - secondary
+    - tertiary
+    - residential
+    - living_street
+    - unclassified
+    - motorway_link
+    - trunk_link
+    - primary_link
+    - secondary_link
+    - tertiary_link
+
+roads:
+  buffer_meters: 10
+
+population:
+  adapter: "cities.sanliurfa.adapter"
