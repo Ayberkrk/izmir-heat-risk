@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: >-
+  Bu pipeline'ı veya ürettiği Isı Hassasiyet Endeksi (HVI) çıktılarını
+  akademik/profesyonel bir çalışmada kullanıyorsanız lütfen aşağıdaki
+  gibi atıf verin. Kod MIT lisanslıdır (LICENSE); girdi verileri
+  (Landsat/Microsoft Planetary Computer, OpenStreetMap, TÜİK, SEGE-2022,
+  belediye açık veri portalları) kaynağına göre değişen kendi lisans ve
+  atıf şartlarına tabidir - bkz. README'nin "Veri kaynakları" bölümü.
+type: software
+title: "Türkiye Kentsel Isı Riski Analiz Hattı"
+abstract: >-
+  Landsat yüzey sıcaklığı, OpenStreetMap yol ağı ve demografik verileri
+  birleştirerek sokak ölçekli, açıklanabilir bir Isı Hassasiyet Endeksi
+  (HVI) üreten, tekrar üretilebilir kentsel ısı riski analiz hattı.
+  Şehirden bağımsız bir mimariye sahiptir; İzmir, Eskişehir ve Şanlıurfa
+  şu an desteklenen üç örnektir.
+authors:
+  - family-names: Korkmaz
+    given-names: Ayberk
+repository-code: "https://github.com/Ayberkrk/turkiye-heat-risk"
+url: "https://github.com/Ayberkrk/turkiye-heat-risk"
+license: MIT
+keywords:
+  - urban-heat-island
+  - climate-risk
+  - landsat
+  - remote-sensing
+  - gis
+  - turkey
+  - python
+  - folium
+version: 1.5.0
+date-released: "2026-09-19"

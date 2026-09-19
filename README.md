@@ -1,6 +1,10 @@
 # Kentsel Isı Adası ve Isı Hassasiyet Endeksi (HVI)
 
 [![Testler](https://github.com/Ayberkrk/turkiye-heat-risk/actions/workflows/tests.yml/badge.svg)](https://github.com/Ayberkrk/turkiye-heat-risk/actions/workflows/tests.yml)
+[![Sürüm](https://img.shields.io/github/v/tag/Ayberkrk/turkiye-heat-risk?label=s%C3%BCr%C3%BCm)](https://github.com/Ayberkrk/turkiye-heat-risk/blob/main/CHANGELOG.md)
+
+Sürüm geçmişi için [CHANGELOG.md](CHANGELOG.md), atıf için
+[CITATION.cff](CITATION.cff) dosyalarına bakın.
 
 ## English summary
 
